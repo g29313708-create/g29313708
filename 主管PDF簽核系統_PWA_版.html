@@ -1,0 +1,1813 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    
+    <!-- PWA Primary Meta Tags -->
+    <title>主管 PDF / Word 線上簽核系統</title>
+    <meta name="theme-color" content="#0f172a">
+    <meta name="description" content="支援完全離線簽核 PDF 與 Word 文件的單機 App 系統">
+
+    <!-- iOS / Apple PWA Support -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="主管簽核">
+    <link rel="apple-touch-icon" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'><rect width='512' height='512' rx='100' fill='%230f172a'/><path fill='%236366f1' d='M368 48H144C117.5 48 96 69.5 96 96V416c0 26.5 21.5 48 48 48H368c26.5 0 48-21.5 48-48V96c0-26.5-21.5-48-48-48z'/></svg>">
+
+    <!-- Dynamic Inline Web App Manifest -->
+    <link id="pwaManifest" rel="manifest">
+
+    <!-- External CDN Libraries (Will be pre-cached for offline use) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/signature_pad@4.1.7/dist/signature_pad.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/html-docx-js@0.3.1/dist/html-docx.min.js"></script>
+
+    <style>
+        /* Custom scrollbar styling */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f5f9;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+
+        /* Prevent unwanted text selection on mobile */
+        body, button, .page-container, .stamp-overlay {
+            -webkit-tap-highlight-color: transparent;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        /* Canvas container style */
+        .page-container {
+            position: relative;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+            background-color: white;
+            transform-origin: center center;
+        }
+
+        /* Overlay element styling for signature/stamp */
+        .stamp-overlay {
+            position: absolute;
+            cursor: move;
+            border: 2px dashed #3b82f6;
+            touch-action: none;
+            box-sizing: border-box;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 10;
+        }
+
+        .stamp-overlay.active {
+            border-color: #2563eb;
+            box-shadow: 0 0 10px rgba(59, 130, 246, 0.6);
+        }
+
+        .stamp-overlay img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            pointer-events: none;
+        }
+
+        /* Responsive larger touch targets for mobile/desktop */
+        .stamp-btn-delete {
+            position: absolute;
+            top: -14px;
+            right: -14px;
+            background-color: #ef4444;
+            color: white;
+            border-radius: 9999px;
+            width: 28px;
+            height: 28px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            cursor: pointer;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+            z-index: 25;
+            touch-action: manipulation;
+        }
+
+        .stamp-btn-delete:active {
+            transform: scale(0.9);
+            background-color: #dc2626;
+        }
+
+        .stamp-handle-resize {
+            position: absolute;
+            bottom: -12px;
+            right: -12px;
+            width: 26px;
+            height: 26px;
+            background-color: #2563eb;
+            border: 2px solid white;
+            border-radius: 9999px;
+            cursor: se-resize;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+            z-index: 25;
+            touch-action: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 10px;
+        }
+
+        /* Placement mode crosshair and banner */
+        .placement-active-layer {
+            cursor: crosshair !important;
+        }
+
+        /* Stamp animation on placement */
+        @keyframes stampPress {
+            0% { transform: scale(1.6); opacity: 0.3; }
+            50% { transform: scale(0.95); opacity: 0.9; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+
+        .stamp-animate-place {
+            animation: stampPress 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+        }
+
+        /* Library selected item indicator */
+        .library-item.selected {
+            border-color: #2563eb !important;
+            background-color: #eff6ff !important;
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.25);
+        }
+
+        /* Dragover Dropzone Highlight */
+        .drag-over {
+            border-color: #3b82f6 !important;
+            background-color: #eff6ff !important;
+        }
+
+        /* Fixed container positioning for center & zoom-panning */
+        .viewport-scroll-wrapper {
+            min-width: 100%;
+            min-height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 1.5rem;
+            margin: auto;
+            width: max-content;
+            height: max-content;
+        }
+    </style>
+</head>
+<body class="bg-slate-100 font-sans text-slate-800 h-screen flex flex-col overflow-hidden">
+
+    <!-- Header Navigation -->
+    <header class="bg-slate-900 text-white h-16 px-3 sm:px-4 flex items-center justify-between shrink-0 shadow-md z-30">
+        <div class="flex items-center space-x-2 sm:space-x-3">
+            <i class="fa-solid fa-file-signature text-xl sm:text-2xl text-indigo-400"></i>
+            <h1 class="font-bold text-base sm:text-lg tracking-wide">主管線上簽核</h1>
+            <span id="offlineBadge" class="hidden text-[10px] bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded-full font-mono">
+                <i class="fa-solid fa-wifi-slash mr-1"></i>離線模式
+            </span>
+        </div>
+
+        <!-- Top Toolbars -->
+        <div class="flex items-center space-x-1.5 sm:space-x-3">
+            <!-- PWA Install Button -->
+            <button id="btnPwaInstall" class="hidden bg-amber-500 hover:bg-amber-400 text-slate-900 font-bold px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-lg text-xs sm:text-sm transition flex items-center space-x-1.5 shadow">
+                <i class="fa-solid fa-mobile-screen-button"></i>
+                <span class="hidden sm:inline">安裝 App</span>
+            </button>
+
+            <!-- Open File Button (PDF & Word) -->
+            <label class="cursor-pointer bg-slate-800 hover:bg-slate-700 text-slate-200 px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-lg text-xs sm:text-sm font-medium transition flex items-center space-x-1.5 border border-slate-700">
+                <i class="fa-solid fa-folder-open text-indigo-400"></i>
+                <span class="hidden sm:inline">開啟檔案</span>
+                <input type="file" id="pdfFileInput" accept="application/pdf,.docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document" class="hidden">
+            </label>
+
+            <!-- Zoom & Nav Controls -->
+            <div id="pdfNavControls" class="hidden flex items-center bg-slate-800 rounded-lg p-1 border border-slate-700 text-xs sm:text-sm">
+                <button id="btnPrevPage" class="p-1 sm:p-1.5 hover:bg-slate-700 rounded text-slate-300 disabled:opacity-40"><i class="fa-solid fa-chevron-left"></i></button>
+                <span id="pageIndicator" class="px-1.5 text-[11px] sm:text-xs font-mono text-slate-300">1/1</span>
+                <button id="btnNextPage" class="p-1 sm:p-1.5 hover:bg-slate-700 rounded text-slate-300 disabled:opacity-40"><i class="fa-solid fa-chevron-right"></i></button>
+                <div class="h-4 w-px bg-slate-700 mx-1"></div>
+                <button id="btnZoomOut" class="p-1 sm:p-1.5 hover:bg-slate-700 rounded text-slate-300"><i class="fa-solid fa-magnifying-glass-minus"></i></button>
+                <span id="zoomIndicator" class="px-1 text-[11px] sm:text-xs font-mono text-slate-300">60%</span>
+                <button id="btnZoomIn" class="p-1 sm:p-1.5 hover:bg-slate-700 rounded text-slate-300"><i class="fa-solid fa-magnifying-glass-plus"></i></button>
+            </div>
+
+            <!-- Export Original Format Button -->
+            <button id="btnExportOriginal" disabled class="bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-700 disabled:text-slate-500 text-white px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-lg text-xs sm:text-sm font-medium transition shadow flex items-center space-x-1">
+                <i class="fa-solid fa-file-word"></i>
+                <span class="hidden md:inline">原格式儲存</span>
+            </button>
+
+            <!-- Export PDF Button -->
+            <button id="btnExportPDF" disabled class="bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-700 disabled:text-slate-500 text-white px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-lg text-xs sm:text-sm font-medium transition shadow flex items-center space-x-1">
+                <i class="fa-solid fa-file-pdf"></i>
+                <span>匯出 PDF</span>
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Container -->
+    <div class="flex flex-col md:flex-row flex-1 overflow-hidden relative">
+
+        <!-- Sidebar: Saved Signatures & Stamps Library -->
+        <aside id="stampSidebar" class="w-full md:w-80 max-h-[380px] md:max-h-full bg-white border-b md:border-b-0 md:border-r border-slate-200 flex flex-col shrink-0 z-20 shadow-sm transition-all duration-300">
+            <div class="p-2.5 sm:p-4 border-b border-slate-100 flex items-center justify-between">
+                <div>
+                    <h2 class="font-bold text-slate-800 flex items-center space-x-2 text-sm sm:text-base">
+                        <i class="fa-solid fa-stamp text-indigo-500"></i>
+                        <span>簽名與印章庫</span>
+                    </h2>
+                    <p class="text-[11px] sm:text-xs text-slate-400 mt-0.5">點選大卡片，再點擊文件指定位置蓋印</p>
+                </div>
+                <!-- Mobile minimize library button -->
+                <button id="btnToggleSidebar" class="md:hidden text-slate-500 hover:text-slate-800 p-1.5 text-xs bg-slate-100 rounded-lg">
+                    <i class="fa-solid fa-chevron-up" id="toggleIcon"></i>
+                </button>
+            </div>
+
+            <!-- Modal Action Buttons -->
+            <div class="px-2.5 py-2.5 grid grid-cols-3 gap-1.5 border-b border-slate-100 bg-slate-50/50">
+                <button id="btnOpenSignatureModal" class="flex flex-col items-center justify-center py-2 px-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 border border-indigo-200 rounded-xl text-xs font-bold transition">
+                    <i class="fa-solid fa-pen-nib text-sm mb-1"></i>
+                    <span>手寫簽名</span>
+                </button>
+                <button id="btnOpenStampModal" class="flex flex-col items-center justify-center py-2 px-1 bg-amber-50 hover:bg-amber-100 text-amber-600 border border-amber-200 rounded-xl text-xs font-bold transition">
+                    <i class="fa-solid fa-upload text-sm mb-1"></i>
+                    <span>上傳印章</span>
+                </button>
+                <button id="btnOpenTextModal" class="flex flex-col items-center justify-center py-2 px-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-xl text-xs font-bold transition">
+                    <i class="fa-solid fa-comment-medical text-sm mb-1"></i>
+                    <span>文字與紀錄</span>
+                </button>
+            </div>
+
+            <!-- Saved Items List Container -->
+            <div class="flex-1 overflow-y-auto p-2.5 sm:p-3 grid grid-cols-2 md:grid-cols-1 gap-3 content-start" id="savedItemsContainer">
+                <div class="col-span-2 md:col-span-1 text-center py-8 text-slate-400 text-xs">
+                    <i class="fa-solid fa-box-open text-3xl mb-2 text-slate-300"></i>
+                    <p>尚未新增簽名、印章或紀錄卡</p>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Center Document Viewport -->
+        <main class="flex-1 bg-slate-200 overflow-auto relative min-h-0" id="pdfViewport">
+            
+            <div class="viewport-scroll-wrapper" id="viewportScrollWrapper">
+                <!-- Sticky Active Placement Banner -->
+                <div id="placementBanner" class="hidden fixed top-20 z-40 max-w-md bg-amber-500 text-white px-4 py-2.5 rounded-xl shadow-lg border border-amber-400 flex items-center justify-between text-xs sm:text-sm animate-bounce">
+                    <div class="flex items-center space-x-2 truncate pr-2">
+                        <i class="fa-solid fa-crosshairs text-base"></i>
+                        <span class="font-bold">請點擊下方文件中欲蓋印的位置</span>
+                    </div>
+                    <div class="flex items-center space-x-2 shrink-0">
+                        <label class="flex items-center space-x-1 text-[11px] bg-amber-600/80 px-2 py-1 rounded cursor-pointer">
+                            <input type="checkbox" id="chkContinuousMode" class="rounded text-amber-500 focus:ring-0">
+                            <span>連續蓋印</span>
+                        </label>
+                        <button id="btnCancelPlacement" class="bg-amber-700 hover:bg-amber-800 text-white px-2 py-1 rounded text-xs font-semibold transition">
+                            取消
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Empty state when no file is loaded -->
+                <div id="emptyState" class="m-auto text-center py-10 px-6 sm:py-16 sm:px-8 max-w-md bg-white rounded-2xl shadow-sm border-2 border-dashed border-slate-300 transition-colors">
+                    <div class="w-14 h-14 bg-indigo-50 text-indigo-500 rounded-full flex items-center justify-center mx-auto mb-3 text-2xl">
+                        <i class="fa-solid fa-file-contract"></i>
+                    </div>
+                    <h3 class="text-base sm:text-lg font-bold text-slate-800 mb-1">請上傳待簽核的 PDF 或 Word 文件</h3>
+                    <p class="text-xs text-slate-500 mb-5">支援 .pdf 與 .docx 檔案，可直接拖曳檔案至此處開啟。</p>
+                    <label class="cursor-pointer inline-flex items-center space-x-2 bg-indigo-600 hover:bg-indigo-500 text-white font-medium px-5 py-2.5 rounded-xl text-xs sm:text-sm transition shadow-sm">
+                        <i class="fa-solid fa-upload"></i>
+                        <span>選擇 PDF / Word 文件</span>
+                        <input type="file" id="pdfFileInputMain" accept="application/pdf,.docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document" class="hidden">
+                    </label>
+                </div>
+
+                <!-- Document Workspace Wrapper -->
+                <div id="pdfPageWrapper" class="relative hidden select-none m-auto">
+                    <!-- PDF Canvas Page -->
+                    <canvas id="pdfCanvas" class="page-container rounded-sm"></canvas>
+                    
+                    <!-- Word Document HTML Page View -->
+                    <div id="wordDocContainer" class="hidden page-container rounded-sm p-8 sm:p-10 overflow-auto text-slate-800 prose max-w-none bg-white min-h-[842px] min-w-[595px]"></div>
+
+                    <!-- Interactive Overlay Layer for signature boxes -->
+                    <div id="overlayLayer" class="absolute top-0 left-0 w-full h-full pointer-events-auto"></div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Modals (Signature, Stamp, Text Modal) -->
+    <!-- Modal 1: Handwritten Signature Canvas Modal -->
+    <div id="signatureModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center hidden p-3">
+        <div class="bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-hidden flex flex-col">
+            <div class="px-5 py-3.5 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
+                <h3 class="font-bold text-slate-800 flex items-center space-x-2 text-sm sm:text-base">
+                    <i class="fa-solid fa-signature text-indigo-600"></i>
+                    <span>建立手寫簽名</span>
+                </h3>
+                <button class="closeModalBtn text-slate-400 hover:text-slate-600 text-2xl leading-none">&times;</button>
+            </div>
+            <div class="p-4 sm:p-6">
+                <div class="border-2 border-slate-200 rounded-xl bg-slate-50 p-1 relative touch-none">
+                    <canvas id="signaturePadCanvas" class="w-full h-44 sm:h-52 bg-white rounded-lg cursor-crosshair"></canvas>
+                    <span class="absolute bottom-2 right-3 text-[10px] text-slate-400 pointer-events-none">在方框內手寫簽名</span>
+                </div>
+                <div class="flex items-center justify-between mt-3 sm:mt-4">
+                    <div class="flex items-center space-x-2">
+                        <span class="text-xs text-slate-500">筆觸顏色：</span>
+                        <button data-color="#000000" class="color-btn w-6 h-6 rounded-full bg-black ring-2 ring-indigo-500 scale-110"></button>
+                        <button data-color="#003399" class="color-btn w-6 h-6 rounded-full bg-blue-800 hover:scale-105"></button>
+                        <button data-color="#cc0000" class="color-btn w-6 h-6 rounded-full bg-red-600 hover:scale-105"></button>
+                    </div>
+                    <button id="btnClearSignaturePad" class="text-xs text-slate-500 hover:text-slate-800 underline">清除重簽</button>
+                </div>
+            </div>
+            <div class="px-5 py-3 bg-slate-50 border-t border-slate-100 flex justify-end space-x-2">
+                <button class="closeModalBtn px-3.5 py-2 rounded-lg text-xs sm:text-sm text-slate-600 hover:bg-slate-200">取消</button>
+                <button id="btnSaveSignature" class="px-4 py-2 rounded-lg text-xs sm:text-sm bg-indigo-600 hover:bg-indigo-500 text-white font-medium shadow">儲存並選擇蓋印</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal 2: Stamp Image Upload Modal -->
+    <div id="stampModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center hidden p-3">
+        <div class="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden flex flex-col">
+            <div class="px-5 py-3.5 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
+                <h3 class="font-bold text-slate-800 flex items-center space-x-2 text-sm sm:text-base">
+                    <i class="fa-solid fa-stamp text-amber-600"></i>
+                    <span>載入個人印章</span>
+                </h3>
+                <button class="closeModalBtn text-slate-400 hover:text-slate-600 text-2xl leading-none">&times;</button>
+            </div>
+            <div class="p-4 sm:p-6 space-y-4">
+                <div class="border-2 border-dashed border-slate-300 rounded-xl p-5 text-center hover:border-amber-400 transition cursor-pointer" id="stampDropZone">
+                    <i class="fa-solid fa-image text-3xl text-slate-300 mb-1"></i>
+                    <p class="text-xs text-slate-600 font-medium">點擊選擇或拖曳印章圖片</p>
+                    <p class="text-[10px] text-slate-400 mt-0.5">支援 PNG, JPG, JPEG 格式</p>
+                    <input type="file" id="stampFileInput" accept="image/png, image/jpeg" class="hidden">
+                </div>
+                <div id="stampPreviewSection" class="hidden space-y-3">
+                    <p class="text-xs font-semibold text-slate-700">圖片預覽：</p>
+                    <div class="w-28 h-28 mx-auto border border-slate-200 rounded-lg p-2 bg-slate-50 flex items-center justify-center overflow-hidden">
+                        <img id="stampPreviewImg" class="max-w-full max-h-full object-contain">
+                    </div>
+                    <label class="flex items-center space-x-2 bg-amber-50 p-2.5 rounded-lg border border-amber-200 cursor-pointer text-xs text-amber-900">
+                        <input type="checkbox" id="chkRemoveWhiteBg" checked class="rounded text-amber-600 focus:ring-amber-500">
+                        <span>自動去除白色底色（適合紅字透明印章）</span>
+                    </label>
+                </div>
+            </div>
+            <div class="px-5 py-3 bg-slate-50 border-t border-slate-100 flex justify-end space-x-2">
+                <button class="closeModalBtn px-3.5 py-2 rounded-lg text-xs sm:text-sm text-slate-600 hover:bg-slate-200">取消</button>
+                <button id="btnSaveStamp" disabled class="px-4 py-2 rounded-lg text-xs sm:text-sm bg-amber-600 hover:bg-amber-500 disabled:bg-slate-300 text-white font-medium shadow">儲存並選擇蓋印</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal 3: Text Input & Record Modal -->
+    <div id="textModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center hidden p-3">
+        <div class="bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-hidden flex flex-col">
+            <div class="px-5 py-3.5 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
+                <h3 class="font-bold text-slate-800 flex items-center space-x-2 text-sm sm:text-base">
+                    <i class="fa-solid fa-comment-medical text-emerald-600"></i>
+                    <span>新增修改意見 / 維修紀錄章</span>
+                </h3>
+                <button class="closeModalBtn text-slate-400 hover:text-slate-600 text-2xl leading-none">&times;</button>
+            </div>
+            <div class="p-4 sm:p-5 space-y-3.5 max-h-[80vh] overflow-y-auto">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">選擇快速範本：</label>
+                    <div class="grid grid-cols-3 gap-2">
+                        <button type="button" class="tmpl-btn border border-emerald-300 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 text-xs py-1.5 px-2 rounded-lg font-medium" data-type="repair">🛠️ 維修紀錄章</button>
+                        <button type="button" class="tmpl-btn border border-blue-300 bg-blue-50 text-blue-800 hover:bg-blue-100 text-xs py-1.5 px-2 rounded-lg font-medium" data-type="review">📝 修改意見章</button>
+                        <button type="button" class="tmpl-btn border border-red-300 bg-red-50 text-red-800 hover:bg-red-100 text-xs py-1.5 px-2 rounded-lg font-medium" data-type="approval">💮 審核通過章</button>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">標題 / 主旨：</label>
+                    <input type="text" id="txtTitleInput" placeholder="例如：設備維修紀錄 或 修改意見" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">詳細內容 / 處理說明：</label>
+                    <textarea id="txtContentInput" rows="3" placeholder="請輸入詳細說明事項或紀錄..." class="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"></textarea>
+                </div>
+                <div class="grid grid-cols-2 gap-2">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">簽核 / 人員：</label>
+                        <input type="text" id="txtAuthorInput" placeholder="例：張主管" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1 flex justify-between">
+                            <span>日期：</span>
+                            <button type="button" id="btnSetToday" class="text-[10px] text-emerald-600 hover:underline">帶入今天</button>
+                        </label>
+                        <input type="text" id="txtDateInput" placeholder="2026-09-06" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">印章風格：</label>
+                    <div class="flex items-center space-x-3 text-xs">
+                        <label class="flex items-center space-x-1 cursor-pointer"><input type="radio" name="textStyle" value="red" checked class="text-red-600 focus:ring-0"><span class="text-red-700 font-bold">經典紅章</span></label>
+                        <label class="flex items-center space-x-1 cursor-pointer"><input type="radio" name="textStyle" value="blue" class="text-blue-600 focus:ring-0"><span class="text-blue-700 font-bold">公務藍章</span></label>
+                        <label class="flex items-center space-x-1 cursor-pointer"><input type="radio" name="textStyle" value="emerald" class="text-emerald-600 focus:ring-0"><span class="text-emerald-700 font-bold">綠色紀錄</span></label>
+                        <label class="flex items-center space-x-1 cursor-pointer"><input type="radio" name="textStyle" value="amber" class="text-amber-600 focus:ring-0"><span class="text-amber-800 font-bold">黃色便籤</span></label>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">實時預覽：</label>
+                    <div id="textStampPreviewBox" class="w-full h-32 border border-slate-200 rounded-lg bg-slate-50 flex items-center justify-center p-2 overflow-hidden">
+                        <img id="textStampPreviewImg" class="max-w-full max-h-full object-contain">
+                    </div>
+                </div>
+            </div>
+            <div class="px-5 py-3 bg-slate-50 border-t border-slate-100 flex justify-end space-x-2">
+                <button class="closeModalBtn px-3.5 py-2 rounded-lg text-xs sm:text-sm text-slate-600 hover:bg-slate-200">取消</button>
+                <button id="btnSaveTextStamp" class="px-4 py-2 rounded-lg text-xs sm:text-sm bg-emerald-600 hover:bg-emerald-500 text-white font-medium shadow">產生並選取蓋印</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Notification Toast UI -->
+    <div id="toast" class="fixed bottom-5 right-5 bg-slate-800 text-white px-4 py-3 rounded-xl shadow-lg flex items-center space-x-3 translate-y-20 opacity-0 transition-all duration-300 z-50 pointer-events-none text-xs sm:text-sm">
+        <i id="toastIcon" class="fa-solid fa-circle-check text-green-400"></i>
+        <span id="toastMsg">訊息內容</span>
+    </div>
+
+    <!-- PWA & Application Logic -->
+    <script>
+        // --- 1. PWA Dynamic Manifest & Offline Pre-caching Mechanism ---
+        function initPwaFeatures() {
+            // Build inline JSON Manifest Data URL
+            const manifestObj = {
+                name: "主管線上簽核系統",
+                short_name: "主管簽核",
+                start_url: "./",
+                display: "standalone",
+                background_color: "#0f172a",
+                theme_color: "#0f172a",
+                description: "手機端離線 PDF 與 Word 簽核系統",
+                icons: [
+                    {
+                        src: "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'><rect width='512' height='512' rx='100' fill='%230f172a'/><path fill='%236366f1' d='M368 48H144C117.5 48 96 69.5 96 96V416c0 26.5 21.5 48 48 48H368c26.5 0 48-21.5 48-48V96c0-26.5-21.5-48-48-48z'/></svg>",
+                        sizes: "512x512",
+                        type: "image/svg+xml",
+                        purpose: "any maskable"
+                    }
+                ]
+            };
+            const manifestStr = "data:application/manifest+json;charset=utf-8," + encodeURIComponent(JSON.stringify(manifestObj));
+            document.getElementById('pwaManifest').setAttribute('href', manifestStr);
+
+            // Pre-cache external CDN libraries to browser CacheStorage for offline reliability
+            if ('caches' in window) {
+                const cdnUrls = [
+                    'https://cdn.tailwindcss.com',
+                    'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css',
+                    'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js',
+                    'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js',
+                    'https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js',
+                    'https://cdn.jsdelivr.net/npm/signature_pad@4.1.7/dist/signature_pad.umd.min.js',
+                    'https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js',
+                    'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js',
+                    'https://cdn.jsdelivr.net/npm/html-docx-js@0.3.1/dist/html-docx.min.js'
+                ];
+                caches.open('manager-sign-app-v1').then(cache => {
+                    cache.addAll(cdnUrls).catch(e => console.warn('Cache pre-fetch partial warning:', e));
+                });
+            }
+
+            // PWA Installation prompt listener
+            let deferredPrompt = null;
+            const btnPwaInstall = document.getElementById('btnPwaInstall');
+
+            window.addEventListener('beforeinstallprompt', (e) => {
+                e.preventDefault();
+                deferredPrompt = e;
+                btnPwaInstall.classList.remove('hidden');
+            });
+
+            btnPwaInstall.addEventListener('click', async () => {
+                if (deferredPrompt) {
+                    deferredPrompt.prompt();
+                    const { outcome } = await deferredPrompt.userChoice;
+                    if (outcome === 'accepted') {
+                        btnPwaInstall.classList.add('hidden');
+                        showToast('已安裝 App 至手機桌面！');
+                    }
+                    deferredPrompt = null;
+                } else {
+                    // Safari / iOS tip
+                    showToast('iOS 請點選 Safari 下方「分享」按鈕，選擇「新增至主畫面」', 'info');
+                }
+            });
+
+            // Offline network status check
+            const offlineBadge = document.getElementById('offlineBadge');
+            const updateOnlineStatus = () => {
+                if (!navigator.onLine) {
+                    offlineBadge.classList.remove('hidden');
+                } else {
+                    offlineBadge.classList.add('hidden');
+                }
+            };
+            window.addEventListener('online', updateOnlineStatus);
+            window.addEventListener('offline', updateOnlineStatus);
+            updateOnlineStatus();
+        }
+
+        // Set up PDF.js worker
+        try {
+            pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+        } catch (e) {
+            console.warn('PDF.js worker setup fallback', e);
+        }
+
+        // --- Application State ---
+        let currentFileType = 'pdf';
+        let pdfDoc = null;
+        let originalPdfBytes = null;
+        let wordHtmlContent = '';
+        let originalFileBlob = null;
+        let originalFileName = 'signed_document';
+
+        let currentPageNum = 1;
+        let totalPages = 1;
+        let currentZoom = 0.6;
+        let signaturePad = null;
+        let selectedStampDataUrl = null;
+
+        let currentRenderTask = null;
+        let initialPinchDist = null;
+        let initialPinchZoom = 0.6;
+
+        let placedSignatures = [];
+        let placementActiveStamp = null;
+        let isContinuousMode = false;
+
+        const LOCAL_STORAGE_KEY = 'manager_signatures_stamps_v3';
+        let savedLibrary = [];
+
+        // DOM Element References
+        let pdfFileInput, pdfFileInputMain, emptyState, pdfPageWrapper, pdfCanvas;
+        let wordDocContainer, overlayLayer, pdfNavControls, btnExportPDF, btnExportOriginal;
+        let pageIndicator, zoomIndicator, savedItemsContainer, placementBanner;
+
+        function showToast(msg, type = 'success') {
+            const toast = document.getElementById('toast');
+            const toastMsg = document.getElementById('toastMsg');
+            const toastIcon = document.getElementById('toastIcon');
+
+            toastMsg.textContent = msg;
+
+            if (type === 'error') {
+                toastIcon.className = 'fa-solid fa-circle-exclamation text-red-400';
+            } else if (type === 'warning') {
+                toastIcon.className = 'fa-solid fa-triangle-exclamation text-amber-400';
+            } else if (type === 'info') {
+                toastIcon.className = 'fa-solid fa-circle-info text-blue-400';
+            } else {
+                toastIcon.className = 'fa-solid fa-circle-check text-green-400';
+            }
+
+            toast.classList.remove('translate-y-20', 'opacity-0');
+            clearTimeout(window.toastTimer);
+            window.toastTimer = setTimeout(() => {
+                toast.classList.add('translate-y-20', 'opacity-0');
+            }, 3500);
+        }
+
+        async function handleFileSelected(file) {
+            if (!file) return;
+
+            const extension = file.name.split('.').pop().toLowerCase();
+            
+            if (extension === 'doc') {
+                showToast('暫不支援舊版 .doc 格式，請轉存為 .docx 或 .pdf 後上傳！', 'warning');
+                return;
+            }
+
+            originalFileName = file.name.substring(0, file.name.lastIndexOf('.')) || 'signed_document';
+            originalFileBlob = file;
+
+            if (extension === 'pdf') {
+                currentFileType = 'pdf';
+                await loadPdfFile(file);
+            } else if (extension === 'docx') {
+                currentFileType = 'word';
+                await loadWordFile(file);
+            } else {
+                showToast('不支援的檔案類型，請選擇 .pdf 或 .docx 檔案！', 'error');
+            }
+        }
+
+        async function loadWordFile(file) {
+            try {
+                showToast('正在解析 Word 文件...', 'info');
+                const arrayBuffer = await file.arrayBuffer();
+                const result = await mammoth.convertToHtml({ arrayBuffer: arrayBuffer });
+                wordHtmlContent = result.value;
+
+                if (!wordHtmlContent || wordHtmlContent.trim() === '') {
+                    showToast('Word 文件內容為空或無法成功讀取！', 'warning');
+                    return;
+                }
+
+                placedSignatures = [];
+                totalPages = 1;
+                currentPageNum = 1;
+
+                pdfCanvas.classList.add('hidden');
+                wordDocContainer.classList.remove('hidden');
+                wordDocContainer.innerHTML = wordHtmlContent;
+
+                emptyState.classList.add('hidden');
+                pdfPageWrapper.classList.remove('hidden');
+                pdfNavControls.classList.remove('hidden');
+                pdfNavControls.classList.add('flex');
+                btnExportPDF.disabled = false;
+                btnExportOriginal.disabled = false;
+
+                renderWordView();
+                showToast('Word 文件載入成功！');
+            } catch (err) {
+                console.error('Word Loading Error:', err);
+                showToast('Word 檔案讀取失敗，請確認是否為標準 .docx 格式。', 'error');
+            }
+        }
+
+        function renderWordView() {
+            const baseWidth = 650 * currentZoom;
+            wordDocContainer.style.width = `${baseWidth}px`;
+            wordDocContainer.style.transform = `scale(1)`;
+            
+            pdfPageWrapper.style.width = `${wordDocContainer.offsetWidth}px`;
+            pdfPageWrapper.style.height = `${wordDocContainer.offsetHeight}px`;
+
+            pageIndicator.textContent = `1 / 1`;
+            zoomIndicator.textContent = `${Math.round(currentZoom * 100)}%`;
+
+            document.getElementById('btnPrevPage').disabled = true;
+            document.getElementById('btnNextPage').disabled = true;
+
+            renderOverlayItems();
+        }
+
+        async function loadPdfFile(file) {
+            try {
+                showToast('正在解析 PDF 文件...', 'info');
+                const arrayBuffer = await file.arrayBuffer();
+                
+                originalPdfBytes = arrayBuffer.slice(0);
+                const pdfData = new Uint8Array(arrayBuffer.slice(0));
+
+                const loadingTask = pdfjsLib.getDocument({ 
+                    data: pdfData,
+                    cMapUrl: 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/cmaps/',
+                    cMapPacked: true
+                });
+
+                pdfDoc = await loadingTask.promise;
+                totalPages = pdfDoc.numPages;
+                currentPageNum = 1;
+
+                placedSignatures = [];
+
+                wordDocContainer.classList.add('hidden');
+                pdfCanvas.classList.remove('hidden');
+
+                emptyState.classList.add('hidden');
+                pdfPageWrapper.classList.remove('hidden');
+                pdfNavControls.classList.remove('hidden');
+                pdfNavControls.classList.add('flex');
+                btnExportPDF.disabled = false;
+                btnExportOriginal.disabled = false;
+
+                await renderCurrentPage();
+                showToast(`PDF 載入成功，共 ${totalPages} 頁`);
+            } catch (err) {
+                console.error('PDF Loading Error:', err);
+                showToast('PDF 載入失敗！檔案可能損毀或受密碼保護。', 'error');
+            }
+        }
+
+        async function renderCurrentPage() {
+            if (currentFileType === 'word') {
+                renderWordView();
+                return;
+            }
+
+            if (!pdfDoc) return;
+
+            if (currentRenderTask) {
+                try {
+                    await currentRenderTask.cancel();
+                } catch(e) {}
+            }
+
+            try {
+                const page = await pdfDoc.getPage(currentPageNum);
+                const viewport = page.getViewport({ scale: currentZoom });
+
+                const canvasCtx = pdfCanvas.getContext('2d');
+                pdfCanvas.height = viewport.height;
+                pdfCanvas.width = viewport.width;
+
+                pdfPageWrapper.style.width = `${viewport.width}px`;
+                pdfPageWrapper.style.height = `${viewport.height}px`;
+
+                const renderContext = {
+                    canvasContext: canvasCtx,
+                    viewport: viewport
+                };
+
+                currentRenderTask = page.render(renderContext);
+                await currentRenderTask.promise;
+                currentRenderTask = null;
+
+                pageIndicator.textContent = `${currentPageNum} / ${totalPages}`;
+                zoomIndicator.textContent = `${Math.round(currentZoom * 100)}%`;
+
+                document.getElementById('btnPrevPage').disabled = (currentPageNum <= 1);
+                document.getElementById('btnNextPage').disabled = (currentPageNum >= totalPages);
+
+                renderOverlayItems();
+            } catch (err) {
+                if (err && err.name === 'RenderingCancelledException') return;
+                console.error('Page Render Error:', err);
+            }
+        }
+
+        function renderOverlayItems() {
+            overlayLayer.innerHTML = '';
+            const pageItems = placedSignatures.filter(item => item.pageNum === currentPageNum);
+
+            pageItems.forEach(item => {
+                const overlayEl = createOverlayDOMElement(item);
+                overlayLayer.appendChild(overlayEl);
+            });
+        }
+
+        function createOverlayDOMElement(item) {
+            const div = document.createElement('div');
+            div.className = 'stamp-overlay group';
+            div.style.left = `${item.x}px`;
+            div.style.top = `${item.y}px`;
+            div.style.width = `${item.width}px`;
+            div.style.height = `${item.height}px`;
+
+            const img = document.createElement('img');
+            img.src = item.dataUrl;
+            div.appendChild(img);
+
+            const delBtn = document.createElement('div');
+            delBtn.className = 'stamp-btn-delete';
+            delBtn.innerHTML = '&times;';
+            delBtn.title = '刪除此圖章';
+            
+            const handleDelete = (e) => {
+                e.stopPropagation();
+                e.preventDefault();
+                placedSignatures = placedSignatures.filter(s => s.id !== item.id);
+                renderOverlayItems();
+                showToast('已移除圖章');
+            };
+            delBtn.addEventListener('click', handleDelete);
+            delBtn.addEventListener('touchend', handleDelete);
+            div.appendChild(delBtn);
+
+            const resizeHandle = document.createElement('div');
+            resizeHandle.className = 'stamp-handle-resize';
+            resizeHandle.innerHTML = '<i class="fa-solid fa-arrows-left-right-to-line transform rotate-45 pointer-events-none"></i>';
+            div.appendChild(resizeHandle);
+
+            makeElementInteractive(div, resizeHandle, item);
+            return div;
+        }
+
+        function makeElementInteractive(el, resizeHandle, itemObj) {
+            let isDragging = false;
+            let isResizing = false;
+            let startX, startY, startLeft, startTop, startWidth, startHeight;
+
+            const startDrag = (e) => {
+                if (e.target === resizeHandle || e.target.classList.contains('stamp-btn-delete')) return;
+                if (placementActiveStamp) return;
+
+                e.stopPropagation();
+                isDragging = true;
+                el.classList.add('active');
+
+                const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+                const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+
+                startX = clientX;
+                startY = clientY;
+                startLeft = parseInt(el.style.left, 10) || 0;
+                startTop = parseInt(el.style.top, 10) || 0;
+
+                document.addEventListener('mousemove', onDrag, { passive: false });
+                document.addEventListener('touchmove', onDrag, { passive: false });
+                document.addEventListener('mouseup', stopDrag);
+                document.addEventListener('touchend', stopDrag);
+            };
+
+            const onDrag = (e) => {
+                if (!isDragging) return;
+                if (e.cancelable) e.preventDefault();
+
+                const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+                const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+
+                const dx = clientX - startX;
+                const dy = clientY - startY;
+
+                let newLeft = startLeft + dx;
+                let newTop = startTop + dy;
+
+                const boundsWidth = currentFileType === 'word' ? wordDocContainer.offsetWidth : pdfCanvas.width;
+                const boundsHeight = currentFileType === 'word' ? wordDocContainer.offsetHeight : pdfCanvas.height;
+
+                const maxLeft = boundsWidth - el.offsetWidth;
+                const maxTop = boundsHeight - el.offsetHeight;
+
+                newLeft = Math.max(0, Math.min(newLeft, maxLeft));
+                newTop = Math.max(0, Math.min(newTop, maxTop));
+
+                el.style.left = `${newLeft}px`;
+                el.style.top = `${newTop}px`;
+
+                itemObj.x = newLeft;
+                itemObj.y = newTop;
+            };
+
+            const stopDrag = () => {
+                isDragging = false;
+                el.classList.remove('active');
+                document.removeEventListener('mousemove', onDrag);
+                document.removeEventListener('touchmove', onDrag);
+                document.removeEventListener('mouseup', stopDrag);
+                document.removeEventListener('touchend', stopDrag);
+            };
+
+            el.addEventListener('mousedown', startDrag);
+            el.addEventListener('touchstart', startDrag, { passive: false });
+
+            const startResize = (e) => {
+                e.stopPropagation();
+                if (e.cancelable) e.preventDefault();
+                isResizing = true;
+
+                const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+                const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+
+                startX = clientX;
+                startY = clientY;
+                startWidth = parseInt(el.style.width, 10) || 120;
+                startHeight = parseInt(el.style.height, 10) || 60;
+
+                document.addEventListener('mousemove', onResize, { passive: false });
+                document.addEventListener('touchmove', onResize, { passive: false });
+                document.addEventListener('mouseup', stopResize);
+                document.addEventListener('touchend', stopResize);
+            };
+
+            const onResize = (e) => {
+                if (!isResizing) return;
+                if (e.cancelable) e.preventDefault();
+
+                const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+                const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+
+                const dx = clientX - startX;
+                const aspectRatio = itemObj.aspectRatio || (startWidth / startHeight);
+                let newWidth = Math.max(35, startWidth + dx);
+                let newHeight = newWidth / aspectRatio;
+
+                el.style.width = `${newWidth}px`;
+                el.style.height = `${newHeight}px`;
+
+                itemObj.width = newWidth;
+                itemObj.height = newHeight;
+            };
+
+            const stopResize = () => {
+                isResizing = false;
+                document.removeEventListener('mousemove', onResize);
+                document.removeEventListener('touchmove', onResize);
+                document.removeEventListener('mouseup', stopResize);
+                document.removeEventListener('touchend', stopResize);
+            };
+
+            resizeHandle.addEventListener('mousedown', startResize);
+            resizeHandle.addEventListener('touchstart', startResize, { passive: false });
+        }
+
+        function selectStampForPlacement(itemData) {
+            if (!originalFileBlob) {
+                showToast('請先選擇並開啟 PDF 或 Word 檔案！', 'warning');
+                return;
+            }
+
+            placementActiveStamp = itemData;
+            highlightSelectedItemInLibrary(itemData.id);
+
+            placementBanner.classList.remove('hidden');
+            overlayLayer.classList.add('placement-active-layer');
+
+            if (window.innerWidth < 768) {
+                const sidebar = document.getElementById('stampSidebar');
+                sidebar.classList.add('max-h-14');
+                document.getElementById('toggleIcon').className = 'fa-solid fa-chevron-down';
+            }
+
+            showToast('已選擇印章/紀錄！點擊文件中欲蓋章位置');
+        }
+
+        function cancelPlacementMode() {
+            placementActiveStamp = null;
+            placementBanner.classList.add('hidden');
+            overlayLayer.classList.remove('placement-active-layer');
+            highlightSelectedItemInLibrary(null);
+        }
+
+        function handleDocumentTapToPlace(e) {
+            if (!placementActiveStamp) return;
+            if (e.target.closest('.stamp-btn-delete') || e.target.closest('.stamp-handle-resize')) return;
+
+            e.preventDefault();
+
+            const rect = overlayLayer.getBoundingClientRect();
+            let clientX, clientY;
+
+            if (e.changedTouches && e.changedTouches.length > 0) {
+                clientX = e.changedTouches[0].clientX;
+                clientY = e.changedTouches[0].clientY;
+            } else {
+                clientX = e.clientX;
+                clientY = e.clientY;
+            }
+
+            const clickX = clientX - rect.left;
+            const clickY = clientY - rect.top;
+
+            placeStampAtCoordinates(placementActiveStamp.dataUrl, clickX, clickY);
+
+            if (!isContinuousMode) {
+                cancelPlacementMode();
+            }
+        }
+
+        function placeStampAtCoordinates(dataUrl, clickX, clickY) {
+            const img = new Image();
+            img.onload = () => {
+                const naturalWidth = img.naturalWidth || 150;
+                const naturalHeight = img.naturalHeight || 80;
+                const aspectRatio = naturalWidth / naturalHeight;
+
+                let defaultWidth = Math.min(180, naturalWidth / 2);
+                if (defaultWidth < 120) defaultWidth = 140;
+                let defaultHeight = defaultWidth / aspectRatio;
+
+                if (defaultHeight > 220) {
+                    defaultHeight = 220;
+                    defaultWidth = defaultHeight * aspectRatio;
+                }
+
+                let posX = clickX - (defaultWidth / 2);
+                let posY = clickY - (defaultHeight / 2);
+
+                const boundsWidth = currentFileType === 'word' ? wordDocContainer.offsetWidth : pdfCanvas.width;
+                const boundsHeight = currentFileType === 'word' ? wordDocContainer.offsetHeight : pdfCanvas.height;
+
+                posX = Math.max(0, Math.min(posX, boundsWidth - defaultWidth));
+                posY = Math.max(0, Math.min(posY, boundsHeight - defaultHeight));
+
+                const newItem = {
+                    id: 'sig_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
+                    pageNum: currentPageNum,
+                    dataUrl: dataUrl,
+                    x: posX,
+                    y: posY,
+                    width: defaultWidth,
+                    height: defaultHeight,
+                    aspectRatio: aspectRatio
+                };
+
+                placedSignatures.push(newItem);
+                renderOverlayItems();
+
+                const addedElements = overlayLayer.querySelectorAll('.stamp-overlay');
+                const lastEl = addedElements[addedElements.length - 1];
+                if (lastEl) {
+                    lastEl.classList.add('stamp-animate-place');
+                }
+
+                showToast('蓋印成功！可拖曳調整位置與大小');
+            };
+            img.src = dataUrl;
+        }
+
+        function initSignaturePad() {
+            const padCanvas = document.getElementById('signaturePadCanvas');
+            
+            signaturePad = new SignaturePad(padCanvas, {
+                penColor: '#000000',
+                minWidth: 1.5,
+                maxWidth: 4
+            });
+
+            document.querySelectorAll('.color-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    document.querySelectorAll('.color-btn').forEach(b => b.classList.remove('ring-2', 'ring-indigo-500', 'scale-110'));
+                    e.currentTarget.classList.add('ring-2', 'ring-indigo-500', 'scale-110');
+                    const color = e.currentTarget.getAttribute('data-color');
+                    signaturePad.penColor = color;
+                });
+            });
+
+            document.getElementById('btnClearSignaturePad').addEventListener('click', () => {
+                signaturePad.clear();
+            });
+        }
+
+        function saveToLibrary(dataUrl, type = 'signature', title = '') {
+            const newItem = {
+                id: 'lib_' + Date.now(),
+                type: type,
+                title: title,
+                dataUrl: dataUrl,
+                createdAt: new Date().toLocaleDateString()
+            };
+            savedLibrary.unshift(newItem);
+            try {
+                localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(savedLibrary));
+            } catch(e) {
+                console.warn('LocalStorage failed:', e);
+            }
+            renderLibraryItems();
+            return newItem;
+        }
+
+        function loadLibraryFromLocalStorage() {
+            try {
+                const data = localStorage.getItem(LOCAL_STORAGE_KEY);
+                savedLibrary = data ? JSON.parse(data) : [];
+            } catch(e) {
+                savedLibrary = [];
+            }
+            renderLibraryItems();
+        }
+
+        function deleteLibraryItem(id) {
+            savedLibrary = savedLibrary.filter(item => item.id !== id);
+            try {
+                localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(savedLibrary));
+            } catch(e) {}
+            if (placementActiveStamp && placementActiveStamp.id === id) {
+                cancelPlacementMode();
+            }
+            renderLibraryItems();
+            showToast('已刪除所選圖章');
+        }
+
+        function highlightSelectedItemInLibrary(selectedId) {
+            document.querySelectorAll('.library-item').forEach(el => {
+                if (el.getAttribute('data-id') === selectedId) {
+                    el.classList.add('selected');
+                } else {
+                    el.classList.remove('selected');
+                }
+            });
+        }
+
+        function renderLibraryItems() {
+            if (!savedItemsContainer) return;
+            if (savedLibrary.length === 0) {
+                savedItemsContainer.innerHTML = `
+                    <div class="col-span-2 md:col-span-1 text-center py-8 text-slate-400 text-xs">
+                        <i class="fa-solid fa-box-open text-3xl mb-2 text-slate-300"></i>
+                        <p>尚未新增簽名、印章或紀錄卡</p>
+                    </div>`;
+                return;
+            }
+
+            savedItemsContainer.innerHTML = '';
+            savedLibrary.forEach(item => {
+                const div = document.createElement('div');
+                const isSelected = placementActiveStamp && placementActiveStamp.id === item.id;
+                
+                div.className = `library-item group relative border-2 border-slate-200 hover:border-indigo-400 rounded-2xl p-3 bg-white hover:bg-slate-50/80 transition-all shadow-sm hover:shadow flex flex-col justify-between cursor-pointer min-h-[135px] sm:min-h-[150px] ${isSelected ? 'selected' : ''}`;
+                div.setAttribute('data-id', item.id);
+                
+                let typeBadge = '';
+                if (item.type === 'signature') {
+                    typeBadge = '<span class="text-xs bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded font-semibold">簽名</span>';
+                } else if (item.type === 'stamp') {
+                    typeBadge = '<span class="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded font-semibold">圖章</span>';
+                } else {
+                    typeBadge = '<span class="text-xs bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded font-semibold">紀錄章</span>';
+                }
+
+                div.innerHTML = `
+                    <div class="flex items-center justify-between w-full mb-1.5 select-none">
+                        ${typeBadge}
+                        <button class="btn-delete-lib text-slate-300 hover:text-red-500 hover:bg-red-50 p-1.5 rounded-lg transition" title="刪除">
+                            <i class="fa-solid fa-trash-can text-sm"></i>
+                        </button>
+                    </div>
+                    
+                    <div class="w-full h-20 sm:h-24 bg-slate-50/80 rounded-xl border border-slate-100 flex items-center justify-center p-2 mb-1.5 overflow-hidden select-none">
+                        <img src="${item.dataUrl}" class="max-w-full max-h-full object-contain pointer-events-none drop-shadow-sm">
+                    </div>
+
+                    <div class="text-center w-full select-none">
+                        <span class="text-xs font-semibold text-slate-500 group-hover:text-indigo-600 transition">點擊此處選取蓋印</span>
+                    </div>
+                `;
+
+                div.addEventListener('click', (e) => {
+                    if (e.target.closest('.btn-delete-lib')) return;
+                    selectStampForPlacement(item);
+                });
+
+                div.querySelector('.btn-delete-lib').addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    deleteLibraryItem(item.id);
+                });
+
+                savedItemsContainer.appendChild(div);
+            });
+        }
+
+        function generateTextStampDataUrl(title, content, author, dateStr, styleType) {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+
+            const dpr = 3;
+            const baseWidth = 420;
+            
+            const lines = [];
+            if (content) {
+                const rawLines = content.split('\n');
+                rawLines.forEach(line => {
+                    for (let i = 0; i < line.length; i += 20) {
+                        lines.push(line.substring(i, i + 20));
+                    }
+                });
+            }
+
+            const lineCount = lines.length || 1;
+            const baseHeight = 120 + (lineCount * 22);
+
+            canvas.width = baseWidth * dpr;
+            canvas.height = baseHeight * dpr;
+            ctx.scale(dpr, dpr);
+
+            let theme = {
+                borderColor: '#dc2626',
+                headerBg: '#fef2f2',
+                textColor: '#991b1b',
+                bodyColor: '#1f2937',
+                bgColor: '#ffffff',
+                borderWidth: 4,
+                dashed: false
+            };
+
+            if (styleType === 'blue') {
+                theme = {
+                    borderColor: '#2563eb',
+                    headerBg: '#eff6ff',
+                    textColor: '#1e40af',
+                    bodyColor: '#1f2937',
+                    bgColor: '#ffffff',
+                    borderWidth: 4,
+                    dashed: false
+                };
+            } else if (styleType === 'emerald') {
+                theme = {
+                    borderColor: '#059669',
+                    headerBg: '#ecfdf5',
+                    textColor: '#065f46',
+                    bodyColor: '#064e3b',
+                    bgColor: '#ffffff',
+                    borderWidth: 3,
+                    dashed: false
+                };
+            } else if (styleType === 'amber') {
+                theme = {
+                    borderColor: '#d97706',
+                    headerBg: '#fef3c7',
+                    textColor: '#92400e',
+                    bodyColor: '#78350f',
+                    bgColor: '#fffbeb',
+                    borderWidth: 2,
+                    dashed: true
+                };
+            }
+
+            ctx.fillStyle = theme.bgColor;
+            ctx.fillRect(0, 0, baseWidth, baseHeight);
+
+            ctx.strokeStyle = theme.borderColor;
+            ctx.lineWidth = theme.borderWidth;
+            if (theme.dashed) {
+                ctx.setLineDash([6, 4]);
+            } else {
+                ctx.setLineDash([]);
+            }
+            ctx.strokeRect(6, 6, baseWidth - 12, baseHeight - 12);
+
+            if (!theme.dashed && (styleType === 'red' || styleType === 'blue')) {
+                ctx.lineWidth = 1.5;
+                ctx.strokeRect(12, 12, baseWidth - 24, baseHeight - 24);
+            }
+
+            ctx.fillStyle = theme.headerBg;
+            ctx.fillRect(14, 14, baseWidth - 28, 38);
+
+            ctx.fillStyle = theme.textColor;
+            ctx.font = 'bold 18px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText(title || '簽核審查備註', baseWidth / 2, 40);
+
+            ctx.strokeStyle = theme.borderColor;
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(14, 52);
+            ctx.lineTo(baseWidth - 14, 52);
+            ctx.stroke();
+
+            ctx.fillStyle = theme.bodyColor;
+            ctx.font = '14px sans-serif';
+            ctx.textAlign = 'left';
+            let startY = 74;
+
+            if (lines.length > 0) {
+                lines.forEach((line) => {
+                    ctx.fillText(line, 22, startY);
+                    startY += 22;
+                });
+            } else {
+                ctx.fillText('（無詳細備註）', 22, startY);
+                startY += 22;
+            }
+
+            ctx.strokeStyle = '#e5e7eb';
+            ctx.beginPath();
+            ctx.moveTo(20, startY + 5);
+            ctx.lineTo(baseWidth - 20, startY + 5);
+            ctx.stroke();
+
+            ctx.fillStyle = '#6b7280';
+            ctx.font = '12px sans-serif';
+            ctx.fillText(`簽核人：${author || '主管'}`, 22, startY + 24);
+
+            ctx.textAlign = 'right';
+            ctx.fillText(`日期：${dateStr || new Date().toISOString().split('T')[0]}`, baseWidth - 22, startY + 24);
+
+            return canvas.toDataURL('image/png');
+        }
+
+        function removeWhiteBackground(imgEl) {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            const w = imgEl.naturalWidth || imgEl.width || 200;
+            const h = imgEl.naturalHeight || imgEl.height || 200;
+            canvas.width = w;
+            canvas.height = h;
+            ctx.drawImage(imgEl, 0, 0, w, h);
+
+            const imgData = ctx.getImageData(0, 0, w, h);
+            const data = imgData.data;
+
+            for (let i = 0; i < data.length; i += 4) {
+                const r = data[i];
+                const g = data[i + 1];
+                const b = data[i + 2];
+                if (r > 210 && g > 210 && b > 210) {
+                    data[i + 3] = 0;
+                }
+            }
+
+            ctx.putImageData(imgData, 0, 0);
+            return canvas.toDataURL('image/png');
+        }
+
+        async function exportOriginalFormat() {
+            if (currentFileType === 'pdf') {
+                await exportSignedPDF();
+                return;
+            }
+
+            try {
+                showToast('正在合成圖章並產生 Word 文件...', 'info');
+
+                const docContainerClone = wordDocContainer.cloneNode(true);
+                docContainerClone.style.position = 'relative';
+
+                const zoomFactor = currentZoom || 1.0;
+                const pageItems = placedSignatures.filter(item => item.pageNum === 1);
+                pageItems.forEach(item => {
+                    const img = document.createElement('img');
+                    img.src = item.dataUrl;
+                    img.style.position = 'absolute';
+                    img.style.left = `${item.x / zoomFactor}px`;
+                    img.style.top = `${item.y / zoomFactor}px`;
+                    img.style.width = `${item.width / zoomFactor}px`;
+                    img.style.height = `${item.height / zoomFactor}px`;
+                    docContainerClone.appendChild(img);
+                });
+
+                const fullHtml = `<!DOCTYPE html><html><head><meta charset="utf-8"></head><body>${docContainerClone.innerHTML}</body></html>`;
+                
+                const convertedBlob = htmlDocx.generateDocument(fullHtml);
+                saveFilePrompt(convertedBlob, `${originalFileName}_signed.docx`, 'Word 文件', ['.docx']);
+            } catch (err) {
+                console.error(err);
+                showToast('匯出 Word 檔案失敗！', 'error');
+            }
+        }
+
+        async function exportSignedPDF() {
+            if (!originalFileBlob) {
+                showToast('尚無載入可匯出的文件', 'error');
+                return;
+            }
+
+            if (currentFileType === 'word') {
+                try {
+                    showToast('正在轉換 Word 頁面為 PDF...', 'info');
+                    const canvas = await html2canvas(pdfPageWrapper, { scale: 2 });
+                    const imgData = canvas.toDataURL('image/jpeg', 0.95);
+
+                    const pdfDocLib = await PDFLib.PDFDocument.create();
+                    const page = pdfDocLib.addPage([canvas.width, canvas.height]);
+                    const imageEmbed = await pdfDocLib.embedJpg(imgData);
+                    page.drawImage(imageEmbed, {
+                        x: 0,
+                        y: 0,
+                        width: canvas.width,
+                        height: canvas.height
+                    });
+
+                    const pdfBytes = await pdfDocLib.save();
+                    const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+                    saveFilePrompt(blob, `${originalFileName}_signed.pdf`, 'PDF 文件', ['.pdf']);
+                    return;
+                } catch (e) {
+                    console.error(e);
+                    showToast('轉換 Word 為 PDF 失敗！', 'error');
+                    return;
+                }
+            }
+
+            try {
+                showToast('正在合成圖章與紀錄並產生 PDF...', 'info');
+
+                const pdfLibDoc = await PDFLib.PDFDocument.load(originalPdfBytes);
+
+                for (let pageIdx = 1; pageIdx <= totalPages; pageIdx++) {
+                    const pageItems = placedSignatures.filter(item => item.pageNum === pageIdx);
+                    if (pageItems.length === 0) continue;
+
+                    const pdfPage = pdfLibDoc.getPage(pageIdx - 1);
+                    const { width: pdfPageWidth, height: pdfPageHeight } = pdfPage.getSize();
+
+                    const pdfJsPage = await pdfDoc.getPage(pageIdx);
+                    const viewport = pdfJsPage.getViewport({ scale: currentZoom });
+                    const renderWidth = viewport.width;
+                    const renderHeight = viewport.height;
+
+                    const scaleX = pdfPageWidth / renderWidth;
+                    const scaleY = pdfPageHeight / renderHeight;
+
+                    for (const item of pageItems) {
+                        let pdfImage;
+                        if (item.dataUrl.startsWith('data:image/png')) {
+                            pdfImage = await pdfLibDoc.embedPng(item.dataUrl);
+                        } else {
+                            pdfImage = await pdfLibDoc.embedJpg(item.dataUrl);
+                        }
+
+                        const pWidth = item.width * scaleX;
+                        const pHeight = item.height * scaleY;
+                        const pX = item.x * scaleX;
+                        const pY = pdfPageHeight - ((item.y + item.height) * scaleY);
+
+                        pdfPage.drawImage(pdfImage, {
+                            x: pX,
+                            y: pY,
+                            width: pWidth,
+                            height: pHeight
+                        });
+                    }
+                }
+
+                const modifiedPdfBytes = await pdfLibDoc.save();
+                const blob = new Blob([modifiedPdfBytes], { type: 'application/pdf' });
+                saveFilePrompt(blob, `${originalFileName}_signed.pdf`, 'PDF 文件', ['.pdf']);
+
+            } catch (err) {
+                console.error(err);
+                showToast('匯出 PDF 失敗！', 'error');
+            }
+        }
+
+        async function saveFilePrompt(blob, suggestedName, description, extensions) {
+            const file = new File([blob], suggestedName, { 
+                type: blob.type || (suggestedName.endsWith('.pdf') ? 'application/pdf' : 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') 
+            });
+
+            if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                try {
+                    await navigator.share({ files: [file] });
+                    showToast('已開啟選單，請選擇「儲存至檔案」');
+                    return;
+                } catch (err) {
+                    if (err.name === 'AbortError') return;
+                }
+            }
+
+            if ('showSaveFilePicker' in window) {
+                try {
+                    const acceptObj = {};
+                    acceptObj[blob.type || 'application/octet-stream'] = extensions;
+                    const handle = await window.showSaveFilePicker({
+                        suggestedName: suggestedName,
+                        types: [{ description: description, accept: acceptObj }]
+                    });
+                    const writable = await handle.createWritable();
+                    await writable.write(blob);
+                    await writable.close();
+                    showToast('已成功儲存檔案！');
+                    return;
+                } catch (err) {
+                    if (err.name === 'AbortError') return;
+                }
+            }
+
+            fallbackDownload(blob, suggestedName);
+        }
+
+        function fallbackDownload(blob, fileName) {
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = fileName;
+            link.click();
+            URL.revokeObjectURL(link.href);
+            showToast('已下載簽核檔案！');
+        }
+
+        function setupPinchToZoom() {
+            const viewport = document.getElementById('pdfViewport');
+            if (!viewport) return;
+
+            viewport.addEventListener('touchstart', (e) => {
+                if (e.touches.length === 2) {
+                    initialPinchDist = Math.hypot(
+                        e.touches[0].clientX - e.touches[1].clientX,
+                        e.touches[0].clientY - e.touches[1].clientY
+                    );
+                    initialPinchZoom = currentZoom;
+                }
+            }, { passive: true });
+
+            viewport.addEventListener('touchmove', (e) => {
+                if (e.touches.length === 2 && initialPinchDist) {
+                    if (e.cancelable) e.preventDefault();
+
+                    const currentDist = Math.hypot(
+                        e.touches[0].clientX - e.touches[1].clientX,
+                        e.touches[0].clientY - e.touches[1].clientY
+                    );
+
+                    const zoomFactor = currentDist / initialPinchDist;
+                    let newZoom = Math.round(initialPinchZoom * zoomFactor * 100) / 100;
+                    newZoom = Math.max(0.3, Math.min(2.5, newZoom));
+
+                    if (Math.abs(newZoom - currentZoom) >= 0.02) {
+                        currentZoom = newZoom;
+                        renderCurrentPage();
+                    }
+                }
+            }, { passive: false });
+
+            viewport.addEventListener('touchend', (e) => {
+                if (e.touches.length < 2) {
+                    initialPinchDist = null;
+                }
+            });
+        }
+
+        function setupDragAndDrop() {
+            const viewport = document.getElementById('pdfViewport');
+            const dropCard = document.getElementById('emptyState');
+
+            ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+                viewport.addEventListener(eventName, preventDefaults, false);
+                document.body.addEventListener(eventName, preventDefaults, false);
+            });
+
+            function preventDefaults(e) {
+                e.preventDefault();
+                e.stopPropagation();
+            }
+
+            ['dragenter', 'dragover'].forEach(eventName => {
+                viewport.addEventListener(eventName, () => dropCard.classList.add('drag-over'), false);
+            });
+
+            ['dragleave', 'drop'].forEach(eventName => {
+                viewport.addEventListener(eventName, () => dropCard.classList.remove('drag-over'), false);
+            });
+
+            viewport.addEventListener('drop', (e) => {
+                const dt = e.dataTransfer;
+                const files = dt.files;
+                if (files && files.length > 0) {
+                    handleFileSelected(files[0]);
+                }
+            }, false);
+        }
+
+        window.addEventListener('DOMContentLoaded', () => {
+            initPwaFeatures();
+
+            pdfFileInput = document.getElementById('pdfFileInput');
+            pdfFileInputMain = document.getElementById('pdfFileInputMain');
+            emptyState = document.getElementById('emptyState');
+            pdfPageWrapper = document.getElementById('pdfPageWrapper');
+            pdfCanvas = document.getElementById('pdfCanvas');
+            wordDocContainer = document.getElementById('wordDocContainer');
+            overlayLayer = document.getElementById('overlayLayer');
+            pdfNavControls = document.getElementById('pdfNavControls');
+            btnExportPDF = document.getElementById('btnExportPDF');
+            btnExportOriginal = document.getElementById('btnExportOriginal');
+            pageIndicator = document.getElementById('pageIndicator');
+            zoomIndicator = document.getElementById('zoomIndicator');
+            savedItemsContainer = document.getElementById('savedItemsContainer');
+            placementBanner = document.getElementById('placementBanner');
+
+            initSignaturePad();
+            loadLibraryFromLocalStorage();
+
+            setupPinchToZoom();
+            setupDragAndDrop();
+
+            const stampSidebar = document.getElementById('stampSidebar');
+            const btnToggleSidebar = document.getElementById('btnToggleSidebar');
+            const toggleIcon = document.getElementById('toggleIcon');
+            
+            btnToggleSidebar.addEventListener('click', () => {
+                if (stampSidebar.classList.contains('max-h-14')) {
+                    stampSidebar.classList.remove('max-h-14');
+                    toggleIcon.className = 'fa-solid fa-chevron-up';
+                } else {
+                    stampSidebar.classList.add('max-h-14');
+                    toggleIcon.className = 'fa-solid fa-chevron-down';
+                }
+            });
+
+            overlayLayer.addEventListener('click', handleDocumentTapToPlace);
+            overlayLayer.addEventListener('touchend', handleDocumentTapToPlace);
+
+            document.getElementById('btnCancelPlacement').addEventListener('click', cancelPlacementMode);
+            const chkContinuousMode = document.getElementById('chkContinuousMode');
+            chkContinuousMode.addEventListener('change', (e) => {
+                isContinuousMode = e.target.checked;
+            });
+
+            const handleFileSelect = (e) => {
+                const file = e.target.files[0];
+                if (file) handleFileSelected(file);
+                e.target.value = '';
+            };
+            pdfFileInput.addEventListener('change', handleFileSelect);
+            pdfFileInputMain.addEventListener('change', handleFileSelect);
+
+            document.getElementById('btnPrevPage').addEventListener('click', () => {
+                if (currentPageNum > 1) {
+                    currentPageNum--;
+                    renderCurrentPage();
+                }
+            });
+
+            document.getElementById('btnNextPage').addEventListener('click', () => {
+                if (currentPageNum < totalPages) {
+                    currentPageNum++;
+                    renderCurrentPage();
+                }
+            });
+
+            document.getElementById('btnZoomIn').addEventListener('click', () => {
+                if (currentZoom < 2.5) {
+                    currentZoom += 0.15;
+                    renderCurrentPage();
+                }
+            });
+
+            document.getElementById('btnZoomOut').addEventListener('click', () => {
+                if (currentZoom > 0.3) {
+                    currentZoom = Math.max(0.3, currentZoom - 0.15);
+                    renderCurrentPage();
+                }
+            });
+
+            btnExportPDF.addEventListener('click', exportSignedPDF);
+            btnExportOriginal.addEventListener('click', exportOriginalFormat);
+
+            const signatureModal = document.getElementById('signatureModal');
+            const stampModal = document.getElementById('stampModal');
+            const textModal = document.getElementById('textModal');
+
+            document.getElementById('btnOpenSignatureModal').addEventListener('click', () => {
+                signatureModal.classList.remove('hidden');
+                signaturePad.clear();
+                setTimeout(() => {
+                    const padCanvas = document.getElementById('signaturePadCanvas');
+                    const ratio = Math.max(window.devicePixelRatio || 1, 1);
+                    padCanvas.width = padCanvas.offsetWidth * ratio;
+                    padCanvas.height = padCanvas.offsetHeight * ratio;
+                    padCanvas.getContext("2d").scale(ratio, ratio);
+                    signaturePad.clear();
+                }, 100);
+            });
+
+            document.getElementById('btnOpenStampModal').addEventListener('click', () => {
+                stampModal.classList.remove('hidden');
+                selectedStampDataUrl = null;
+                document.getElementById('stampPreviewSection').classList.add('hidden');
+                document.getElementById('btnSaveStamp').disabled = true;
+                document.getElementById('stampFileInput').value = '';
+            });
+
+            document.getElementById('btnOpenTextModal').addEventListener('click', () => {
+                textModal.classList.remove('hidden');
+                const todayStr = new Date().toISOString().split('T')[0];
+                document.getElementById('txtDateInput').value = todayStr;
+                updateTextStampLivePreview();
+            });
+
+            document.querySelectorAll('.closeModalBtn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    signatureModal.classList.add('hidden');
+                    stampModal.classList.add('hidden');
+                    textModal.classList.add('hidden');
+                });
+            });
+
+            document.getElementById('btnSaveSignature').addEventListener('click', () => {
+                if (signaturePad.isEmpty()) {
+                    showToast('請先繪製簽名！', 'warning');
+                    return;
+                }
+                const dataUrl = signaturePad.toDataURL('image/png');
+                const newItem = saveToLibrary(dataUrl, 'signature');
+                signatureModal.classList.add('hidden');
+                
+                if (originalFileBlob) {
+                    selectStampForPlacement(newItem);
+                }
+            });
+
+            const txtTitleInput = document.getElementById('txtTitleInput');
+            const txtContentInput = document.getElementById('txtContentInput');
+            const txtAuthorInput = document.getElementById('txtAuthorInput');
+            const txtDateInput = document.getElementById('txtDateInput');
+            const textStampPreviewImg = document.getElementById('textStampPreviewImg');
+
+            function updateTextStampLivePreview() {
+                const title = txtTitleInput.value.trim() || '簽核備註章';
+                const content = txtContentInput.value.trim();
+                const author = txtAuthorInput.value.trim() || '主管';
+                const dateStr = txtDateInput.value.trim() || new Date().toISOString().split('T')[0];
+                const selectedStyle = document.querySelector('input[name="textStyle"]:checked')?.value || 'red';
+
+                const dataUrl = generateTextStampDataUrl(title, content, author, dateStr, selectedStyle);
+                textStampPreviewImg.src = dataUrl;
+                return dataUrl;
+            }
+
+            [txtTitleInput, txtContentInput, txtAuthorInput, txtDateInput].forEach(el => {
+                el.addEventListener('input', updateTextStampLivePreview);
+            });
+
+            document.querySelectorAll('input[name="textStyle"]').forEach(radio => {
+                radio.addEventListener('change', updateTextStampLivePreview);
+            });
+
+            document.getElementById('btnSetToday').addEventListener('click', () => {
+                txtDateInput.value = new Date().toISOString().split('T')[0];
+                updateTextStampLivePreview();
+            });
+
+            document.querySelectorAll('.tmpl-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const type = e.currentTarget.getAttribute('data-type');
+                    if (type === 'repair') {
+                        txtTitleInput.value = '🛠️ 設備維修紀錄卡';
+                        txtContentInput.value = '已完成零組件更換與測試，運作狀況良好。';
+                        document.querySelector('input[name="textStyle"][value="emerald"]').checked = true;
+                    } else if (type === 'review') {
+                        txtTitleInput.value = '📝 修改意見審核章';
+                        txtContentInput.value = '請依指示修正數據後，重新上報。';
+                        document.querySelector('input[name="textStyle"][value="blue"]').checked = true;
+                    } else if (type === 'approval') {
+                        txtTitleInput.value = '💮 複審合格通過';
+                        txtContentInput.value = '符合規範，准予通過辦理。';
+                        document.querySelector('input[name="textStyle"][value="red"]').checked = true;
+                    }
+                    updateTextStampLivePreview();
+                });
+            });
+
+            document.getElementById('btnSaveTextStamp').addEventListener('click', () => {
+                const dataUrl = updateTextStampLivePreview();
+                const title = txtTitleInput.value.trim() || '文字紀錄卡';
+                const newItem = saveToLibrary(dataUrl, 'text', title);
+                textModal.classList.add('hidden');
+
+                if (originalFileBlob) {
+                    selectStampForPlacement(newItem);
+                }
+            });
+
+            const stampDropZone = document.getElementById('stampDropZone');
+            const stampFileInput = document.getElementById('stampFileInput');
+            const stampPreviewImg = document.getElementById('stampPreviewImg');
+            const chkRemoveWhiteBg = document.getElementById('chkRemoveWhiteBg');
+
+            stampDropZone.addEventListener('click', () => stampFileInput.click());
+
+            stampFileInput.addEventListener('change', (e) => {
+                const file = e.target.files[0];
+                if (file) processStampFile(file);
+            });
+
+            function processStampFile(file) {
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    const img = new Image();
+                    img.onload = () => {
+                        stampPreviewImg.src = event.target.result;
+                        document.getElementById('stampPreviewSection').classList.remove('hidden');
+                        document.getElementById('btnSaveStamp').disabled = false;
+                        updateStampDataUrl(img);
+                    };
+                    img.src = event.target.result;
+                };
+                reader.readAsDataURL(file);
+            }
+
+            function updateStampDataUrl(imgEl) {
+                if (chkRemoveWhiteBg.checked) {
+                    selectedStampDataUrl = removeWhiteBackground(imgEl);
+                } else {
+                    selectedStampDataUrl = imgEl.src;
+                }
+            }
+
+            chkRemoveWhiteBg.addEventListener('change', () => {
+                if (stampPreviewImg.src) {
+                    const img = new Image();
+                    img.onload = () => updateStampDataUrl(img);
+                    img.src = stampPreviewImg.src;
+                }
+            });
+
+            document.getElementById('btnSaveStamp').addEventListener('click', () => {
+                if (!selectedStampDataUrl) return;
+                const newItem = saveToLibrary(selectedStampDataUrl, 'stamp');
+                stampModal.classList.add('hidden');
+
+                if (originalFileBlob) {
+                    selectStampForPlacement(newItem);
+                }
+            });
+        });
+    </script>
+</body>
+</html>
