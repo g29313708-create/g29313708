@@ -1,0 +1,1228 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>幼兒學習足跡 AI 智能產生器</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome Icons -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <!-- html2canvas (用於圖檔轉換) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <!-- html2pdf.js (用於一鍵導出標準 A4 PDF) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@400;500;700&display=swap');
+        
+        body {
+            font-family: 'Zen Maru Gothic', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background-color: #f8fafc;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        /* A4 Page Viewport Controls - 精準 210mm x 297mm 比列 */
+        .a4-container {
+            width: 210mm;
+            height: 297mm;
+            max-height: 297mm;
+            background: white;
+            padding: 10mm 12mm;
+            box-sizing: border-box;
+            margin: 0 auto;
+            box-shadow: 0 10px 25px -5px rgba(0,0,0,0.1);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+
+        /* 模板風格 CSS Classes */
+        /* Template 1: 溫馨童趣 (Default Amber) */
+        .theme-amber .a4-border { border-color: #fde68a; }
+        .theme-amber .a4-header { background-color: #fef3c7; border-color: #fcd34d; color: #78350f; }
+        .theme-amber .a4-icon { background-color: #fbbf24; }
+        .theme-amber .a4-topic { background-color: #fff7ed; border-left-color: #fb923c; color: #9a3412; }
+        .theme-amber .a4-card1 { background-color: #fffbeb; border-color: #fde68a; }
+        .theme-amber .a4-card2 { background-color: #eff6ff; border-color: #bfdbfe; }
+        .theme-amber .a4-card3 { background-color: #ecfdf5; border-color: #a7f3d0; }
+        .theme-amber .a4-card4 { background-color: #fff1f2; border-color: #fecdd3; }
+        .theme-amber .a4-badge1 { background-color: #fde68a; color: #78350f; }
+        .theme-amber .a4-badge2 { background-color: #bfdbfe; color: #1e3a8a; }
+        .theme-amber .a4-badge3 { background-color: #a7f3d0; color: #064e3b; }
+        .theme-amber .a4-badge4 { background-color: #fecdd3; color: #881337; }
+
+        /* Template 2: 清新自然 (Fresh Green) */
+        .theme-green .a4-border { border-color: #a7f3d0; }
+        .theme-green .a4-header { background-color: #d1fae5; border-color: #6ee7b7; color: #065f46; }
+        .theme-green .a4-icon { background-color: #10b981; }
+        .theme-green .a4-topic { background-color: #f0fdf4; border-left-color: #34d399; color: #14532d; }
+        .theme-green .a4-card1 { background-color: #f0fdf4; border-color: #bbf7d0; }
+        .theme-green .a4-card2 { background-color: #f0fdfa; border-color: #99f6e4; }
+        .theme-green .a4-card3 { background-color: #ecfdf5; border-color: #a7f3d0; }
+        .theme-green .a4-card4 { background-color: #f7fee7; border-color: #d9f99d; }
+        .theme-green .a4-badge1 { background-color: #bbf7d0; color: #14532d; }
+        .theme-green .a4-badge2 { background-color: #99f6e4; color: #134e4a; }
+        .theme-green .a4-badge3 { background-color: #a7f3d0; color: #064e3b; }
+        .theme-green .a4-badge4 { background-color: #d9f99d; color: #365314; }
+
+        /* Template 3: 繽紛彩虹 (Playful Pastel) */
+        .theme-pastel .a4-border { border-color: #f472b6; }
+        .theme-pastel .a4-header { background-color: #fce7f3; border-color: #fbcfe8; color: #831843; }
+        .theme-pastel .a4-icon { background-color: #ec4899; }
+        .theme-pastel .a4-topic { background-color: #faf5ff; border-left-color: #c084fc; color: #581c87; }
+        .theme-pastel .a4-card1 { background-color: #fff1f2; border-color: #fecdd3; }
+        .theme-pastel .a4-card2 { background-color: #f0f9ff; border-color: #bae6fd; }
+        .theme-pastel .a4-card3 { background-color: #faf5ff; border-color: #e9d5ff; }
+        .theme-pastel .a4-card4 { background-color: #fdf2f8; border-color: #fbcfe8; }
+        .theme-pastel .a4-badge1 { background-color: #fecdd3; color: #881337; }
+        .theme-pastel .a4-badge2 { background-color: #bae6fd; color: #0c4a6e; }
+        .theme-pastel .a4-badge3 { background-color: #e9d5ff; color: #581c87; }
+        .theme-pastel .a4-badge4 { background-color: #fbcfe8; color: #831843; }
+
+        /* Template 4: 典雅簡約 (Modern Blue/Grey) */
+        .theme-modern .a4-border { border-color: #cbd5e1; }
+        .theme-modern .a4-header { background-color: #f1f5f9; border-color: #cbd5e1; color: #1e293b; }
+        .theme-modern .a4-icon { background-color: #475569; }
+        .theme-modern .a4-topic { background-color: #f8fafc; border-left-color: #64748b; color: #0f172a; }
+        .theme-modern .a4-card1 { background-color: #f8fafc; border-color: #e2e8f0; }
+        .theme-modern .a4-card2 { background-color: #f8fafc; border-color: #e2e8f0; }
+        .theme-modern .a4-card3 { background-color: #f8fafc; border-color: #e2e8f0; }
+        .theme-modern .a4-card4 { background-color: #f8fafc; border-color: #e2e8f0; }
+        .theme-modern .a4-badge1 { background-color: #e2e8f0; color: #334155; }
+        .theme-modern .a4-badge2 { background-color: #e2e8f0; color: #334155; }
+        .theme-modern .a4-badge3 { background-color: #e2e8f0; color: #334155; }
+        .theme-modern .a4-badge4 { background-color: #e2e8f0; color: #334155; }
+
+        /* 嚴格的 A4 列印設定，解決多頁與切割問題 */
+        @page {
+            size: A4 portrait;
+            margin: 0;
+        }
+
+        @media print {
+            html, body {
+                width: 210mm !important;
+                height: 297mm !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                overflow: hidden !important;
+                background: white !important;
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+            }
+            .no-print {
+                display: none !important;
+            }
+            .preview-wrapper {
+                padding: 0 !important;
+                margin: 0 !important;
+                background: white !important;
+                width: 210mm !important;
+                height: 297mm !important;
+            }
+            .a4-container {
+                width: 210mm !important;
+                height: 297mm !important;
+                max-height: 297mm !important;
+                padding: 8mm 10mm !important;
+                box-shadow: none !important;
+                margin: 0 !important;
+                border-radius: 0 !important;
+                box-sizing: border-box !important;
+                overflow: hidden !important;
+                page-break-after: avoid !important;
+                page-break-before: avoid !important;
+                page-break-inside: avoid !important;
+            }
+        }
+
+        /* Loading Spinner Animation */
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .animate-spin-custom {
+            animation: spin 1s linear infinite;
+        }
+    </style>
+</head>
+<body class="min-h-screen text-slate-800 pb-12">
+
+    <!-- 提示通知 (Toast) -->
+    <div id="toast" class="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 hidden bg-slate-800/95 text-white text-xs font-bold px-4 py-3 rounded-full shadow-2xl items-center gap-2.5 transition-all max-w-[90vw] text-center border border-slate-700">
+        <i id="toastIcon" class="fas fa-info-circle text-amber-400"></i>
+        <span id="toastText">訊息提示</span>
+    </div>
+
+    <!-- 頂部手機導覽列 -->
+    <header class="no-print bg-amber-500 text-white sticky top-0 z-50 shadow-md px-4 py-3 flex justify-between items-center">
+        <div class="flex items-center gap-2">
+            <i class="fas fa-wand-magic-sparkles text-2xl"></i>
+            <div>
+                <h1 class="font-bold text-base leading-none">AI 幼兒學習足跡產生器</h1>
+                <p class="text-[10px] opacity-90">Mobile Portfolio Generator</p>
+            </div>
+        </div>
+        <div class="flex items-center gap-2">
+            <button id="toggleViewBtn" onclick="toggleView()" class="bg-white text-amber-600 hover:bg-amber-50 text-xs font-bold px-3 py-1.5 rounded-full shadow transition flex items-center gap-1">
+                <i class="fas fa-eye" id="viewIcon"></i>
+                <span id="viewText">預覽 A4</span>
+            </button>
+        </div>
+    </header>
+
+    <!-- 主介面容器 -->
+    <main class="max-w-md mx-auto p-4 md:max-w-2xl">
+
+        <!-- ===== 表單模式 (Form View) ===== -->
+        <div id="formView" class="space-y-5">
+
+            <!-- 模板選擇區塊 -->
+            <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 space-y-3">
+                <h2 class="text-sm font-bold text-slate-700 flex items-center gap-2 border-b border-slate-100 pb-2">
+                    <i class="fas fa-palette text-amber-500"></i> 選擇輸出 A4 範本風格
+                </h2>
+                <div class="grid grid-cols-2 gap-2 text-xs">
+                    <label class="flex items-center gap-2 p-2.5 rounded-xl border border-amber-300 bg-amber-50 cursor-pointer hover:shadow-xs transition" id="tpl-lbl-amber">
+                        <input type="radio" name="templateSelect" value="theme-amber" checked onchange="changeTemplate('theme-amber')" class="accent-amber-500">
+                        <div>
+                            <span class="font-bold text-amber-900 block">🌼 溫馨童趣</span>
+                            <span class="text-[10px] text-amber-700">暖黃亮彩微甜風格</span>
+                        </div>
+                    </label>
+
+                    <label class="flex items-center gap-2 p-2.5 rounded-xl border border-emerald-200 bg-emerald-50 cursor-pointer hover:shadow-xs transition" id="tpl-lbl-green">
+                        <input type="radio" name="templateSelect" value="theme-green" onchange="changeTemplate('theme-green')" class="accent-emerald-500">
+                        <div>
+                            <span class="font-bold text-emerald-900 block">🌿 清新自然</span>
+                            <span class="text-[10px] text-emerald-700">薄荷森林清爽配色</span>
+                        </div>
+                    </label>
+
+                    <label class="flex items-center gap-2 p-2.5 rounded-xl border border-pink-200 bg-pink-50 cursor-pointer hover:shadow-xs transition" id="tpl-lbl-pastel">
+                        <input type="radio" name="templateSelect" value="theme-pastel" onchange="changeTemplate('theme-pastel')" class="accent-pink-500">
+                        <div>
+                            <span class="font-bold text-pink-900 block">🦄 繽紛彩虹</span>
+                            <span class="text-[10px] text-pink-700">馬卡龍活潑夢幻</span>
+                        </div>
+                    </label>
+
+                    <label class="flex items-center gap-2 p-2.5 rounded-xl border border-slate-200 bg-slate-50 cursor-pointer hover:shadow-xs transition" id="tpl-lbl-modern">
+                        <input type="radio" name="templateSelect" value="theme-modern" onchange="changeTemplate('theme-modern')" class="accent-slate-500">
+                        <div>
+                            <span class="font-bold text-slate-900 block">📜 典雅簡約</span>
+                            <span class="text-[10px] text-slate-600">質感現代簡約設計</span>
+                        </div>
+                    </label>
+                </div>
+            </div>
+
+            <!-- 1. 基本資料卡片 (全自動記憶存檔機制) -->
+            <div class="bg-white rounded-2xl p-4 shadow-sm border border-amber-100 space-y-3">
+                <div class="flex items-center justify-between border-b border-amber-100 pb-2">
+                    <h2 class="text-sm font-bold text-amber-800 flex items-center gap-2">
+                        <i class="fas fa-school text-amber-500"></i> 1. 基本資料與觀察主題
+                    </h2>
+                    <div class="flex items-center gap-2">
+                        <span class="text-[10px] text-emerald-600 font-bold bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200 flex items-center gap-1">
+                            <i class="fas fa-floppy-disk text-[9px]"></i> 本地已自動儲存
+                        </span>
+                        <button type="button" onclick="clearSavedDefaults()" class="text-[10px] text-slate-400 hover:text-rose-500 underline">
+                            重置清除全部
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="grid grid-cols-2 gap-3 text-xs">
+                    <div class="col-span-2">
+                        <label class="block font-bold text-slate-600 mb-1">學校名稱</label>
+                        <input type="text" id="schoolName" value="芽芽幼兒園" placeholder="例如：愛愛幼兒園" oninput="saveAllData()" class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 focus:bg-white focus:border-amber-400 focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block font-bold text-slate-600 mb-1">學期 / 年份</label>
+                        <input type="text" id="semester" value="114學年度 第一學期" placeholder="例如：114學年度 上學期" oninput="saveAllData()" class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 focus:bg-white focus:border-amber-400 focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block font-bold text-slate-600 mb-1">班級名稱</label>
+                        <input type="text" id="className" value="幼幼班" placeholder="例如：草莓班" oninput="saveAllData()" class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 focus:bg-white focus:border-amber-400 focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block font-bold text-slate-600 mb-1">幼生姓名</label>
+                        <input type="text" id="studentName" value="小寶貝" placeholder="請輸入幼生姓名" oninput="saveAllData()" class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 focus:bg-white focus:border-amber-400 focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block font-bold text-slate-600 mb-1">記錄月份</label>
+                        <input type="text" id="recordMonth" value="9月份" placeholder="例如：9月、10月份" oninput="saveAllData()" class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 focus:bg-white focus:border-amber-400 focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block font-bold text-slate-600 mb-1">指導教師</label>
+                        <input type="text" id="teacherName" value="王老師" placeholder="請輸入老師姓名" oninput="saveAllData()" class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 focus:bg-white focus:border-amber-400 focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block font-bold text-slate-600 mb-1">紀錄日期</label>
+                        <input type="date" id="recordDate" onchange="saveAllData()" class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 focus:bg-white focus:border-amber-400 focus:outline-none">
+                    </div>
+                    <div class="col-span-2">
+                        <label class="block font-bold text-amber-900 mb-1">活動主題名稱</label>
+                        <input type="text" id="topicTitle" value="自主探索與學習體驗" placeholder="例如：積木角落與創作樂趣味" oninput="saveAllData()" class="w-full bg-amber-50/50 border border-amber-200 rounded-lg p-2.5 text-xs font-bold text-amber-900 focus:bg-white focus:border-amber-400 focus:outline-none">
+                    </div>
+                </div>
+            </div>
+
+            <!-- 2. 上傳 4 張照片 -->
+            <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 space-y-3">
+                <div class="flex items-center justify-between border-b border-slate-100 pb-2">
+                    <h2 class="text-sm font-bold text-slate-700 flex items-center gap-2">
+                        <i class="fas fa-images text-amber-500"></i> 2. 上傳照片
+                    </h2>
+                    <!-- 一次選取多張按鈕 -->
+                    <button type="button" onclick="document.getElementById('inputBatch').click()" class="bg-amber-100 hover:bg-amber-200 text-amber-800 text-xs font-bold px-3 py-1.5 rounded-full transition flex items-center gap-1 shadow-2xs">
+                        <i class="fas fa-layer-group"></i> 📸 一次選擇4張照片
+                    </button>
+                    <input type="file" id="inputBatch" accept="image/*" multiple class="hidden" onchange="loadBatchPhotos(this)">
+                </div>
+
+                <p class="text-[11px] text-slate-400">
+                    💡 點擊上方的「一次選擇4張照片」，可在相簿中多選；照片上傳後會儲存在本機瀏覽器中。
+                </p>
+
+                <div class="grid grid-cols-2 gap-3">
+                    <!-- Photo 1 Upload -->
+                    <div class="bg-slate-50 p-2 rounded-xl border border-dashed border-slate-300 text-center relative cursor-pointer hover:bg-amber-50 transition" onclick="document.getElementById('inputP1').click()">
+                        <div class="h-32 rounded-lg overflow-hidden flex flex-col items-center justify-center text-slate-400 relative">
+                            <img id="prevP1" class="w-full h-full object-cover hidden">
+                            <div id="phP1">
+                                <i class="fas fa-camera text-2xl text-amber-400 mb-1"></i>
+                                <p class="text-xs font-bold text-slate-600">照片 1</p>
+                                <p class="text-[10px] text-slate-400">點擊單張上傳</p>
+                            </div>
+                        </div>
+                        <input type="file" id="inputP1" accept="image/*" class="hidden" onchange="loadPhoto(this, 'prevP1', 'phP1', 'cardP1')">
+                    </div>
+
+                    <!-- Photo 2 Upload -->
+                    <div class="bg-slate-50 p-2 rounded-xl border border-dashed border-slate-300 text-center relative cursor-pointer hover:bg-blue-50 transition" onclick="document.getElementById('inputP2').click()">
+                        <div class="h-32 rounded-lg overflow-hidden flex flex-col items-center justify-center text-slate-400 relative">
+                            <img id="prevP2" class="w-full h-full object-cover hidden">
+                            <div id="phP2">
+                                <i class="fas fa-camera text-2xl text-blue-400 mb-1"></i>
+                                <p class="text-xs font-bold text-slate-600">照片 2</p>
+                                <p class="text-[10px] text-slate-400">點擊單張上傳</p>
+                            </div>
+                        </div>
+                        <input type="file" id="inputP2" accept="image/*" class="hidden" onchange="loadPhoto(this, 'prevP2', 'phP2', 'cardP2')">
+                    </div>
+
+                    <!-- Photo 3 Upload -->
+                    <div class="bg-slate-50 p-2 rounded-xl border border-dashed border-slate-300 text-center relative cursor-pointer hover:bg-emerald-50 transition" onclick="document.getElementById('inputP3').click()">
+                        <div class="h-32 rounded-lg overflow-hidden flex flex-col items-center justify-center text-slate-400 relative">
+                            <img id="prevP3" class="w-full h-full object-cover hidden">
+                            <div id="phP3">
+                                <i class="fas fa-camera text-2xl text-emerald-400 mb-1"></i>
+                                <p class="text-xs font-bold text-slate-600">照片 3</p>
+                                <p class="text-[10px] text-slate-400">點擊單張上傳</p>
+                            </div>
+                        </div>
+                        <input type="file" id="inputP3" accept="image/*" class="hidden" onchange="loadPhoto(this, 'prevP3', 'phP3', 'cardP3')">
+                    </div>
+
+                    <!-- Photo 4 Upload -->
+                    <div class="bg-slate-50 p-2 rounded-xl border border-dashed border-slate-300 text-center relative cursor-pointer hover:bg-rose-50 transition" onclick="document.getElementById('inputP4').click()">
+                        <div class="h-32 rounded-lg overflow-hidden flex flex-col items-center justify-center text-slate-400 relative">
+                            <img id="prevP4" class="w-full h-full object-cover hidden">
+                            <div id="phP4">
+                                <i class="fas fa-camera text-2xl text-rose-400 mb-1"></i>
+                                <p class="text-xs font-bold text-slate-600">照片 4</p>
+                                <p class="text-[10px] text-slate-400">點擊單張上傳</p>
+                            </div>
+                        </div>
+                        <input type="file" id="inputP4" accept="image/*" class="hidden" onchange="loadPhoto(this, 'prevP4', 'phP4', 'cardP4')">
+                    </div>
+                </div>
+            </div>
+
+            <!-- AI 自動生成設定 -->
+            <div class="bg-gradient-to-r from-purple-500 to-indigo-600 rounded-2xl p-4 text-white shadow-md space-y-3">
+                <div class="flex items-center justify-between">
+                    <h3 class="font-bold text-sm flex items-center gap-1.5">
+                        <i class="fas fa-brain"></i> 3. AI 視覺智能分析與文字生成
+                    </h3>
+                    <span class="text-[10px] bg-white/20 px-2 py-0.5 rounded-full">Gemini AI</span>
+                </div>
+                
+                <!-- 單機 API Key 設定欄位 -->
+                <div class="bg-white/10 p-2.5 rounded-xl space-y-1">
+                    <label class="block text-[11px] font-bold text-purple-100 flex items-center justify-between">
+                        <span>🔑 Gemini API Key (用於高精準照片分析)</span>
+                        <a href="https://aistudio.google.com/" target="_blank" class="underline text-amber-200 hover:text-white">免費申請 Key</a>
+                    </label>
+                    <input type="password" id="userApiKey" placeholder="貼入你的 AI Studio Key (若未設定，會套用通用活動觀察範本)" oninput="saveAllData()" class="w-full bg-white/20 text-white placeholder-purple-200 border border-white/30 rounded-lg p-1.5 text-xs focus:outline-none focus:bg-white/30">
+                </div>
+
+                <p class="text-[11px] text-purple-100 leading-tight">
+                    ✨ 提示：AI 會精準辨識上傳照片中的「實際物件、動作與表情」，自動撰寫專屬描述。
+                </p>
+                
+                <button type="button" id="aiBtn" onclick="generateWithAI()" class="w-full bg-white text-indigo-700 font-bold py-3 px-4 rounded-xl shadow transition flex items-center justify-center gap-2 text-xs active:scale-95 cursor-pointer">
+                    <i class="fas fa-wand-magic-sparkles text-amber-500" id="aiBtnIcon"></i>
+                    <span id="aiBtnText">✨ 請 AI 依實際照片內容辨識生成</span>
+                </button>
+            </div>
+
+            <!-- 4. AI 生成與可調整文字欄位 -->
+            <div id="textFieldsArea" class="space-y-4">
+                
+                <!-- 主題簡介說明 -->
+                <div class="bg-white rounded-2xl p-4 shadow-sm border border-orange-100 space-y-2">
+                    <h2 class="text-sm font-bold text-orange-800 flex items-center gap-2 border-b border-orange-100 pb-2">
+                        <i class="fas fa-lightbulb text-orange-500"></i> 主題引導與簡介 (可編修)
+                    </h2>
+                    <textarea id="topicDesc" rows="2" oninput="saveAllData()" class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-xs focus:bg-white focus:border-orange-400 focus:outline-none" placeholder="活動簡介...">孩子們透過多元探索、學習教具操作與主題創作，展現豐富的專注力、手眼協調發展與自信笑容！</textarea>
+                </div>
+
+                <!-- 各照片觀察說明 -->
+                <div class="space-y-3">
+                    <h2 class="text-sm font-bold text-slate-700 px-1">4張照片說明細節 (可編修)</h2>
+
+                    <!-- P1 Text -->
+                    <div class="bg-white p-3 rounded-xl border border-amber-100 text-xs space-y-2">
+                        <div class="flex justify-between items-center">
+                            <span class="font-bold text-amber-800">照片 1 標籤與說明</span>
+                            <input type="text" id="p1Tag" value="感官與生活探索" oninput="saveAllData()" class="text-right border-b border-slate-200 font-medium text-amber-700 w-28 focus:outline-none">
+                        </div>
+                        <textarea id="p1Desc" rows="2" oninput="saveAllData()" class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 focus:bg-white focus:outline-none">專注於觀察與操作學習道具，透過雙手細緻摸索，練習手部小肌肉發展與探索經驗。</textarea>
+                    </div>
+
+                    <!-- P2 Text -->
+                    <div class="bg-white p-3 rounded-xl border border-blue-100 text-xs space-y-2">
+                        <div class="flex justify-between items-center">
+                            <span class="font-bold text-blue-800">照片 2 標籤與說明</span>
+                            <input type="text" id="p2Tag" value="精細動作與專注" oninput="saveAllData()" class="text-right border-b border-slate-200 font-medium text-blue-700 w-28 focus:outline-none">
+                        </div>
+                        <textarea id="p2Desc" rows="2" oninput="saveAllData()" class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 focus:bg-white focus:outline-none">眼神高度專注於操作眼前材料，展現獨立嘗試與創作意願，逐漸建立穩定手眼協調。</textarea>
+                    </div>
+
+                    <!-- P3 Text -->
+                    <div class="bg-white p-3 rounded-xl border border-emerald-100 text-xs space-y-2">
+                        <div class="flex justify-between items-center">
+                            <span class="font-bold text-emerald-800">照片 3 標籤與說明</span>
+                            <input type="text" id="p3Tag" value="角落自主學習" oninput="saveAllData()" class="text-right border-b border-slate-200 font-medium text-emerald-700 w-28 focus:outline-none">
+                        </div>
+                        <textarea id="p3Desc" rows="2" oninput="saveAllData()" class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 focus:bg-white focus:outline-none">在園所的學習角落自由尋找感興趣的教具與玩具，學習在團體環境中安定自我與探索。</textarea>
+                    </div>
+
+                    <!-- P4 Text -->
+                    <div class="bg-white p-3 rounded-xl border border-rose-100 text-xs space-y-2">
+                        <div class="flex justify-between items-center">
+                            <span class="font-bold text-rose-800">照片 4 標籤與說明</span>
+                            <input type="text" id="p4Tag" value="創作成就與自信" oninput="saveAllData()" class="text-right border-b border-slate-200 font-medium text-rose-700 w-28 focus:outline-none">
+                        </div>
+                        <textarea id="p4Desc" rows="2" oninput="saveAllData()" class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 focus:bg-white focus:outline-none">開心地向大家展示自己的學習與活動成果，滿臉笑容展現滿滿的成就感與自信展現。</textarea>
+                    </div>
+                </div>
+
+                <!-- 老師評語區塊 -->
+                <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 space-y-3 text-xs">
+                    <h2 class="text-sm font-bold text-slate-700 border-b border-slate-100 pb-2">老師的回饋與評語</h2>
+                    <div>
+                        <label class="block font-bold text-amber-800 mb-1">💌 老師的話</label>
+                        <textarea id="teacherComment" rows="3" oninput="saveAllData()" class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 focus:bg-white focus:outline-none">寶貝今天在課堂上的表現非常棒！無論是專注摸索還是創作表現，都能沉浸在探索的樂趣中，充滿自信的笑容更是最具感染力的成果！</textarea>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- 生成按鈕 -->
+            <button onclick="generateAndPreview()" class="w-full bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-bold py-3.5 px-6 rounded-2xl shadow-lg transition transform active:scale-95 flex items-center justify-center gap-2 text-base">
+                <i class="fas fa-file-invoice"></i> 生成 A4 學習足跡檔案
+            </button>
+
+        </div>
+
+        <!-- ===== 預覽模式 (A4 Preview Mode) ===== -->
+        <div id="previewView" class="hidden">
+
+            <!-- 頂部列印與下載控制列 -->
+            <div class="no-print mb-4 flex flex-col gap-2.5 bg-white p-3.5 rounded-2xl shadow-sm border border-slate-200">
+                
+                <!-- 預覽切換模板按鈕 -->
+                <div class="flex items-center justify-between border-b border-slate-100 pb-2 text-xs">
+                    <span class="font-bold text-slate-700">🎨 快速切換模板風格：</span>
+                    <div class="flex gap-1.5">
+                        <button onclick="changeTemplate('theme-amber')" class="px-2 py-1 rounded bg-amber-100 text-amber-800 font-bold text-[10px]">黃橘</button>
+                        <button onclick="changeTemplate('theme-green')" class="px-2 py-1 rounded bg-emerald-100 text-emerald-800 font-bold text-[10px]">綠意</button>
+                        <button onclick="changeTemplate('theme-pastel')" class="px-2 py-1 rounded bg-pink-100 text-pink-800 font-bold text-[10px]">繽紛</button>
+                        <button onclick="changeTemplate('theme-modern')" class="px-2 py-1 rounded bg-slate-200 text-slate-800 font-bold text-[10px]">典雅</button>
+                    </div>
+                </div>
+
+                <div class="flex items-center justify-between gap-2 flex-wrap">
+                    <button onclick="toggleView()" class="bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold px-3 py-2 rounded-xl transition flex items-center gap-1">
+                        <i class="fas fa-arrow-left"></i> 返回修改
+                    </button>
+
+                    <!-- 下載與存檔按鈕選單 -->
+                    <div class="flex gap-1.5 flex-wrap">
+                        <button onclick="downloadAsPDF()" id="downloadPdfBtn" class="bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold px-3.5 py-2 rounded-xl shadow transition flex items-center gap-1">
+                            <i class="fas fa-file-pdf"></i> 下載整張 A4 PDF
+                        </button>
+                        <button onclick="downloadAsPNG()" id="downloadImgBtn" class="bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold px-3 py-2 rounded-xl shadow transition flex items-center gap-1">
+                            <i class="fas fa-file-image"></i> 下載 PNG 圖檔
+                        </button>
+                        <button onclick="doPrint()" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-3 py-2 rounded-xl shadow transition flex items-center gap-1">
+                            <i class="fas fa-print"></i> 直接列印
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 備用進階選單 -->
+                <div class="flex justify-center gap-3 pt-1 border-t border-slate-100">
+                    <button onclick="downloadAsHTML()" class="text-[11px] text-indigo-600 font-bold hover:underline flex items-center gap-1">
+                        <i class="fas fa-file-code"></i> 下載獨立 HTML 備份檔
+                    </button>
+                </div>
+
+                <p class="text-[10px] text-slate-500 text-center leading-tight">
+                    💡 提示：點擊「<b>下載整張 A4 PDF</b>」可導出正標準單頁 A4 格式檔；如遇手機瀏覽器限制，亦可下載 PNG 圖檔！
+                </p>
+            </div>
+
+            <!-- 可縮放的 A4 容器區域 -->
+            <div class="preview-wrapper overflow-x-auto py-2">
+                
+                <div id="printableA4Card" class="a4-container theme-amber a4-border rounded-2xl border-4">
+                    
+                    <div class="flex-1 flex flex-col justify-between space-y-2">
+                        <!-- Header -->
+                        <div class="a4-header rounded-xl p-3 border-2 mb-1 flex justify-between items-center shrink-0">
+                            <div class="flex items-center gap-2.5">
+                                <div class="w-10 h-10 a4-icon text-white rounded-full flex items-center justify-center text-lg shadow shrink-0">
+                                    <i class="fas fa-child"></i>
+                                </div>
+                                <div>
+                                    <h1 class="text-base font-bold tracking-wide leading-tight" id="outTitle">幼兒自主探索與創作學習足跡</h1>
+                                    <p class="text-[10px] opacity-90"><span id="outSchool">芽芽幼兒園</span> • <span id="outSemester">114學年度 第一學期</span></p>
+                                </div>
+                            </div>
+                            <div class="text-right text-[11px] font-medium space-y-0.5 shrink-0">
+                                <p><span class="bg-white/80 px-2 py-0.5 rounded">班級：<span id="outClass">幼幼班</span></span></p>
+                                <p><span class="bg-white/80 px-2 py-0.5 rounded">幼生：<span id="outStudent" class="font-bold">小寶貝</span></span></p>
+                                <p><span class="bg-white/80 px-2 py-0.5 rounded text-[10px]">月份：<span id="outMonth">9月份</span></span></p>
+                            </div>
+                        </div>
+
+                        <!-- 主題介紹區 -->
+                        <div class="a4-topic border-l-4 p-2 rounded-r-lg text-xs text-gray-700 leading-tight shrink-0">
+                            <strong class="text-xs">💡 活動觀察主題：<span id="outTopicTitle"></span></strong><br>
+                            <span id="outTopicDesc" class="text-[11px]"></span>
+                        </div>
+
+                        <!-- 4張照片網格 (精準高度控制 h-44 / md:h-48 避免溢出) -->
+                        <div class="grid grid-cols-2 gap-2.5 my-auto flex-1 items-center">
+                            
+                            <!-- 照片 1 -->
+                            <div class="a4-card1 p-2 rounded-xl border flex flex-col items-center h-full justify-between">
+                                <div class="w-full h-44 md:h-48 overflow-hidden rounded-lg bg-gray-100 flex items-center justify-center relative">
+                                    <img id="cardP1" class="w-full h-full object-cover hidden">
+                                    <div id="noP1" class="text-gray-300 text-xs">未提供照片 1</div>
+                                </div>
+                                <div class="mt-1.5 text-center w-full">
+                                    <span class="inline-block a4-badge1 text-[10px] font-bold px-2 py-0.5 rounded-full mb-0.5" id="outP1Tag">感官與生活探索</span>
+                                    <p class="text-[10px] text-gray-600 font-medium leading-tight line-clamp-2" id="outP1Desc"></p>
+                                </div>
+                            </div>
+
+                            <!-- 照片 2 -->
+                            <div class="a4-card2 p-2 rounded-xl border flex flex-col items-center h-full justify-between">
+                                <div class="w-full h-44 md:h-48 overflow-hidden rounded-lg bg-gray-100 flex items-center justify-center relative">
+                                    <img id="cardP2" class="w-full h-full object-cover hidden">
+                                    <div id="noP2" class="text-gray-300 text-xs">未提供照片 2</div>
+                                </div>
+                                <div class="mt-1.5 text-center w-full">
+                                    <span class="inline-block a4-badge2 text-[10px] font-bold px-2 py-0.5 rounded-full mb-0.5" id="outP2Tag">精細動作與握筆</span>
+                                    <p class="text-[10px] text-gray-600 font-medium leading-tight line-clamp-2" id="outP2Desc"></p>
+                                </div>
+                            </div>
+
+                            <!-- 照片 3 -->
+                            <div class="a4-card3 p-2 rounded-xl border flex flex-col items-center h-full justify-between">
+                                <div class="w-full h-44 md:h-48 overflow-hidden rounded-lg bg-gray-100 flex items-center justify-center relative">
+                                    <img id="cardP3" class="w-full h-full object-cover hidden">
+                                    <div id="noP3" class="text-gray-300 text-xs">未提供照片 3</div>
+                                </div>
+                                <div class="mt-1.5 text-center w-full">
+                                    <span class="inline-block a4-badge3 text-[10px] font-bold px-2 py-0.5 rounded-full mb-0.5" id="outP3Tag">角落自主學習</span>
+                                    <p class="text-[10px] text-gray-600 font-medium leading-tight line-clamp-2" id="outP3Desc"></p>
+                                </div>
+                            </div>
+
+                            <!-- 照片 4 -->
+                            <div class="a4-card4 p-2 rounded-xl border flex flex-col items-center h-full justify-between">
+                                <div class="w-full h-44 md:h-48 overflow-hidden rounded-lg bg-gray-100 flex items-center justify-center relative">
+                                    <img id="cardP4" class="w-full h-full object-cover hidden">
+                                    <div id="noP4" class="text-gray-300 text-xs">未提供照片 4</div>
+                                </div>
+                                <div class="mt-1.5 text-center w-full">
+                                    <span class="inline-block a4-badge4 text-[10px] font-bold px-2 py-0.5 rounded-full mb-0.5" id="outP4Tag">創作成就與情感</span>
+                                    <p class="text-[10px] text-gray-600 font-medium leading-tight line-clamp-2" id="outP4Desc"></p>
+                                </div>
+                            </div>
+
+                        </div>
+                    </div>
+
+                    <!-- 觀察評估與老師的話 (精簡大評語區) -->
+                    <div class="bg-gray-50 rounded-xl p-2.5 border border-gray-200 mt-2 shrink-0">
+                        <h3 class="text-[11px] font-bold text-gray-700 mb-1 flex items-center gap-1.5">
+                            <i class="fas fa-comment-heart text-amber-500"></i> 老師的回饋與觀察評語 (Teacher's Feedback)
+                        </h3>
+
+                        <div class="text-[10px] text-gray-600 flex justify-between items-end pt-0.5">
+                            <p class="flex-1 pr-3 leading-snug"><strong>老師的話：</strong> <span id="outComment"></span></p>
+                            <div class="text-right shrink-0 font-medium text-gray-500 text-[10px]">
+                                指導教師：<span id="outTeacher" class="border-b border-gray-400 inline-block px-1">王老師</span><br>
+                                紀錄日期：<span id="outDate"></span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 頁腳裝飾 -->
+                    <div class="mt-1 text-center text-[9px] text-gray-400 shrink-0">
+                        ★ 陪伴孩子快樂成長，記錄每一個閃光的精彩瞬間 ★
+                    </div>
+
+                </div>
+            </div>
+
+        </div>
+
+    </main>
+
+    <script>
+        // 設定預設 API Key (可空)
+        let apiKey = ""; 
+
+        // 儲存照片 Base64 資料
+        const photosBase64 = { p1: null, p2: null, p3: null, p4: null };
+
+        // 目前選擇的模板
+        let currentTemplate = 'theme-amber';
+
+        // 顯示 Toast 提示訊息
+        function showToast(text, icon = 'fa-check-circle', iconColor = 'text-emerald-400') {
+            const toast = document.getElementById('toast');
+            const toastText = document.getElementById('toastText');
+            const toastIcon = document.getElementById('toastIcon');
+            if (!toast) return;
+            
+            toastText.innerText = text;
+            toastIcon.className = `fas ${icon} ${iconColor}`;
+            toast.classList.remove('hidden');
+            toast.classList.add('flex');
+            
+            setTimeout(() => {
+                toast.classList.add('hidden');
+                toast.classList.remove('flex');
+            }, 3500);
+        }
+
+        // 高亮顯示更新後的文字欄位
+        function highlightTextFields() {
+            const area = document.getElementById('textFieldsArea');
+            if (!area) return;
+            area.classList.add('ring-2', 'ring-amber-400', 'rounded-2xl', 'transition-all');
+            setTimeout(() => {
+                area.classList.remove('ring-2', 'ring-amber-400');
+            }, 1500);
+        }
+
+        // 頁面載入時讀取上次儲存的所有資料
+        window.addEventListener('DOMContentLoaded', () => {
+            document.getElementById('recordDate').valueAsDate = new Date();
+            loadAllSavedData();
+        });
+
+        // 全功能本機自動儲存機制 (保存所有輸入欄位與圖片至 localStorage)
+        function saveAllData() {
+            try {
+                const data = {
+                    schoolName: document.getElementById('schoolName').value,
+                    semester: document.getElementById('semester').value,
+                    className: document.getElementById('className').value,
+                    studentName: document.getElementById('studentName').value,
+                    recordMonth: document.getElementById('recordMonth').value,
+                    teacherName: document.getElementById('teacherName').value,
+                    recordDate: document.getElementById('recordDate').value,
+                    topicTitle: document.getElementById('topicTitle').value,
+                    userApiKey: document.getElementById('userApiKey').value,
+                    topicDesc: document.getElementById('topicDesc').value,
+                    p1Tag: document.getElementById('p1Tag').value,
+                    p1Desc: document.getElementById('p1Desc').value,
+                    p2Tag: document.getElementById('p2Tag').value,
+                    p2Desc: document.getElementById('p2Desc').value,
+                    p3Tag: document.getElementById('p3Tag').value,
+                    p3Desc: document.getElementById('p3Desc').value,
+                    p4Tag: document.getElementById('p4Tag').value,
+                    p4Desc: document.getElementById('p4Desc').value,
+                    teacherComment: document.getElementById('teacherComment').value,
+                    currentTemplate: currentTemplate,
+                    photosBase64: photosBase64
+                };
+                localStorage.setItem('portfolio_full_data', JSON.stringify(data));
+            } catch (e) {
+                console.warn('LocalStorage save error:', e);
+            }
+        }
+
+        // 讀取本機儲存的所有資料
+        function loadAllSavedData() {
+            try {
+                const saved = localStorage.getItem('portfolio_full_data');
+                if (saved) {
+                    const data = JSON.parse(saved);
+                    if (data.schoolName !== undefined) document.getElementById('schoolName').value = data.schoolName;
+                    if (data.semester !== undefined) document.getElementById('semester').value = data.semester;
+                    if (data.className !== undefined) document.getElementById('className').value = data.className;
+                    if (data.studentName !== undefined) document.getElementById('studentName').value = data.studentName;
+                    if (data.recordMonth !== undefined) document.getElementById('recordMonth').value = data.recordMonth;
+                    if (data.teacherName !== undefined) document.getElementById('teacherName').value = data.teacherName;
+                    if (data.recordDate) document.getElementById('recordDate').value = data.recordDate;
+                    if (data.topicTitle !== undefined) document.getElementById('topicTitle').value = data.topicTitle;
+                    if (data.userApiKey !== undefined) document.getElementById('userApiKey').value = data.userApiKey;
+                    if (data.topicDesc !== undefined) document.getElementById('topicDesc').value = data.topicDesc;
+
+                    if (data.p1Tag !== undefined) document.getElementById('p1Tag').value = data.p1Tag;
+                    if (data.p1Desc !== undefined) document.getElementById('p1Desc').value = data.p1Desc;
+                    if (data.p2Tag !== undefined) document.getElementById('p2Tag').value = data.p2Tag;
+                    if (data.p2Desc !== undefined) document.getElementById('p2Desc').value = data.p2Desc;
+                    if (data.p3Tag !== undefined) document.getElementById('p3Tag').value = data.p3Tag;
+                    if (data.p3Desc !== undefined) document.getElementById('p3Desc').value = data.p3Desc;
+                    if (data.p4Tag !== undefined) document.getElementById('p4Tag').value = data.p4Tag;
+                    if (data.p4Desc !== undefined) document.getElementById('p4Desc').value = data.p4Desc;
+
+                    if (data.teacherComment !== undefined) document.getElementById('teacherComment').value = data.teacherComment;
+
+                    if (data.currentTemplate) {
+                        changeTemplate(data.currentTemplate);
+                    }
+
+                    // 復原照片
+                    if (data.photosBase64) {
+                        const keys = ['p1', 'p2', 'p3', 'p4'];
+                        keys.forEach((k, idx) => {
+                            if (data.photosBase64[k]) {
+                                photosBase64[k] = data.photosBase64[k];
+                                const num = idx + 1;
+                                restorePhotoDOM(`prevP${num}`, `phP${num}`, `cardP${num}`, data.photosBase64[k]);
+                            }
+                        });
+                    }
+                }
+            } catch (e) {
+                console.warn('LocalStorage load error:', e);
+            }
+        }
+
+        // 輔助函式：復原相片至預覽區塊
+        function restorePhotoDOM(imgId, placeholderId, targetCardId, srcData) {
+            const img = document.getElementById(imgId);
+            const placeholder = document.getElementById(placeholderId);
+            if (img) {
+                img.src = srcData;
+                img.classList.remove('hidden');
+            }
+            if (placeholder) {
+                placeholder.classList.add('hidden');
+            }
+
+            const targetImg = document.getElementById(targetCardId);
+            const noTextId = targetCardId.replace('cardP', 'noP');
+            const noText = document.getElementById(noTextId);
+            if (targetImg) {
+                targetImg.src = srcData;
+                targetImg.classList.remove('hidden');
+            }
+            if (noText) {
+                noText.classList.add('hidden');
+            }
+        }
+
+        // 重置並清除記錄的所有資料
+        function clearSavedDefaults() {
+            if (confirm("確定要清除儲存的所有資料與照片，恢復成預設值嗎？")) {
+                localStorage.removeItem('portfolio_full_data');
+                location.reload();
+            }
+        }
+
+        function changeTemplate(tplClass) {
+            currentTemplate = tplClass;
+            const a4Card = document.getElementById('printableA4Card');
+            if (a4Card) {
+                a4Card.className = `a4-container ${tplClass} a4-border rounded-2xl border-4`;
+            }
+            // 同步單選按鈕 Checked 狀態
+            const radios = document.getElementsByName('templateSelect');
+            radios.forEach(r => {
+                r.checked = (r.value === tplClass);
+            });
+            saveAllData();
+        }
+
+        // 單張照片上傳
+        function loadPhoto(input, imgId, placeholderId, targetCardId) {
+            if (input.files && input.files[0]) {
+                processSinglePhoto(input.files[0], imgId, placeholderId, targetCardId);
+            }
+        }
+
+        // 批量一次上傳多張照片 (最多4張)
+        function loadBatchPhotos(input) {
+            if (input.files && input.files.length > 0) {
+                const files = Array.from(input.files).slice(0, 4); // 取前 4 張
+                files.forEach((file, index) => {
+                    const idx = index + 1;
+                    processSinglePhoto(file, `prevP${idx}`, `phP${idx}`, `cardP${idx}`);
+                });
+            }
+        }
+
+        // 使用 Canvas 對圖片進行前置自動壓縮 (壓縮至適宜 AI 辨識與 LocalStorage 儲存的大小)
+        function processSinglePhoto(file, imgId, placeholderId, targetCardId) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const imgObj = new Image();
+                imgObj.onload = function() {
+                    const canvas = document.createElement('canvas');
+                    let width = imgObj.width;
+                    let height = imgObj.height;
+                    const maxDim = 800; // 限制邊長 800px，大幅減輕尺寸並利於離線快取
+
+                    if (width > maxDim || height > maxDim) {
+                        if (width > height) {
+                            height = Math.round((height * maxDim) / width);
+                            width = maxDim;
+                        } else {
+                            width = Math.round((width * maxDim) / height);
+                            height = maxDim;
+                        }
+                    }
+
+                    canvas.width = width;
+                    canvas.height = height;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(imgObj, 0, 0, width, height);
+
+                    // 轉為輕量化的 JPEG 格式
+                    const resizedDataUrl = canvas.toDataURL('image/jpeg', 0.8);
+
+                    restorePhotoDOM(imgId, placeholderId, targetCardId, resizedDataUrl);
+
+                    // 儲存至 Base64 供 AI 分析與存檔
+                    const pKey = targetCardId.replace('cardP', 'p').toLowerCase();
+                    photosBase64[pKey] = resizedDataUrl;
+
+                    saveAllData();
+                };
+                imgObj.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        // 呼叫 Gemini AI 分析照片或帶入內建範本
+        async function generateWithAI() {
+            const aiBtn = document.getElementById('aiBtn');
+            const aiBtnIcon = document.getElementById('aiBtnIcon');
+            const aiBtnText = document.getElementById('aiBtnText');
+
+            const studentName = document.getElementById('studentName').value.trim() || "孩子";
+            const topicTitle = document.getElementById('topicTitle').value.trim() || "自主探索與學習體驗";
+            const recordMonth = document.getElementById('recordMonth').value.trim() || "";
+            const userKey = document.getElementById('userApiKey').value.trim();
+
+            // 優先採用使用者填寫的 Key
+            const activeApiKey = userKey || apiKey;
+
+            // 如果完全沒有 Key，自動套用優質備用範本
+            if (!activeApiKey) {
+                applyFallbackTemplate(studentName, topicTitle, recordMonth);
+                showToast("未設定 API Key，已為您套用幼兒評估智能範本！", "fa-lightbulb", "text-amber-400");
+                saveAllData();
+                return;
+            }
+
+            // 變更按鈕為載入狀態
+            aiBtn.disabled = true;
+            aiBtnIcon.className = "fas fa-spinner animate-spin-custom text-amber-500";
+            aiBtnText.innerText = "AI 正在辨識照片畫面中 (約3-5秒)...";
+
+            // 構建帶有清晰相片標記與嚴格畫面前提的 Prompt
+            const promptIntro = `請你扮演一位資深的幼兒園老師與兒童發展專家。
+我將提供 4 位置的照片（按順序分別為照片1、照片2、照片3、照片4）。
+
+【基本資料】
+- 幼生姓名：${studentName}
+- 紀錄月份：${recordMonth}
+- 活動主題：${topicTitle}
+
+【重要辨識要求】：
+1. 請仔細「觀察與分析」照片畫面中的【實際物體】（例如：積木、畫筆、繪本、戶外植物、黏土、拼圖、玩具等）與【實際動作表情】（例如：拿取、摳摸、堆疊、奔跑、觀察、對鏡頭微笑等）。
+2. 每張照片的觀察描述，必須「完全忠實反映照片1、2、3、4中的實際畫面內容」，絕對不要憑空捏造或提及照片中沒有出現的物品。
+3. 若某張照片未上傳，請依活動主題『${topicTitle}』撰寫通用的學習描述。
+4. 請使用繁體中文，並直接輸出為 JSON 格式，請勿包含 Markdown 標記，格式如下：
+
+{
+  "topicDesc": "1-2句主題簡介，說明孩子在『${topicTitle}』主題中的整體學習發展與態度",
+  "p1Tag": "照片1分類標籤(4字內)",
+  "p1Desc": "照片1的精準畫面內容描述與發展分析 (30-40字，必須符合照片1畫面)",
+  "p2Tag": "照片2分類標籤(4字內)",
+  "p2Desc": "照片2的精準畫面內容描述與發展分析 (30-40字，必須符合照片2畫面)",
+  "p3Tag": "照片3分類標籤(4字內)",
+  "p3Desc": "照片3的精準畫面內容描述與發展分析 (30-40字，必須符合照片3畫面)",
+  "p4Tag": "照片4分類標籤(4字內)",
+  "p4Desc": "照片4的精準畫面內容描述與發展分析 (30-40字，必須符合照片4畫面)",
+  "teacherComment": "老師給幼生及家長溫馨簡短的回饋評語 (40-60字)"
+}
+
+以下為提供給你的照片內容列表：\n`;
+
+            const parts = [{ text: promptIntro }];
+
+            const keys = ['p1', 'p2', 'p3', 'p4'];
+            keys.forEach((k, idx) => {
+                parts.push({ text: `\n--- [照片 ${idx + 1}] ---` });
+                if (photosBase64[k]) {
+                    const base64Data = photosBase64[k].split(',')[1];
+                    const mimeType = photosBase64[k].split(';')[0].split(':')[1] || "image/jpeg";
+                    parts.push({
+                        inlineData: {
+                            mimeType: mimeType,
+                            data: base64Data
+                        }
+                    });
+                } else {
+                    parts.push({ text: "(此張照片未上傳)" });
+                }
+            });
+
+            const payload = {
+                contents: [{ parts: parts }],
+                generationConfig: {
+                    responseMimeType: "application/json",
+                    temperature: 0.3
+                }
+            };
+
+            let success = false;
+
+            try {
+                // 優先調用 Gemini 模型 (支持 gemini-2.5-flash 與 gemini-1.5-flash)
+                const modelsToTry = ['gemini-2.5-flash', 'gemini-1.5-flash'];
+                
+                for (const model of modelsToTry) {
+                    try {
+                        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${activeApiKey}`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(payload)
+                        });
+
+                        if (res.ok) {
+                            const data = await res.json();
+                            let resultText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+                            if (resultText) {
+                                resultText = resultText.trim().replace(/^```json\s*/i, '').replace(/^```\s*/, '').replace(/\s*```$/, '');
+                                const parsed = JSON.parse(resultText);
+                                
+                                if (parsed.topicDesc) document.getElementById('topicDesc').value = parsed.topicDesc;
+                                if (parsed.p1Tag) document.getElementById('p1Tag').value = parsed.p1Tag;
+                                if (parsed.p1Desc) document.getElementById('p1Desc').value = parsed.p1Desc;
+                                if (parsed.p2Tag) document.getElementById('p2Tag').value = parsed.p2Tag;
+                                if (parsed.p2Desc) document.getElementById('p2Desc').value = parsed.p2Desc;
+                                if (parsed.p3Tag) document.getElementById('p3Tag').value = parsed.p3Tag;
+                                if (parsed.p3Desc) document.getElementById('p3Desc').value = parsed.p3Desc;
+                                if (parsed.p4Tag) document.getElementById('p4Tag').value = parsed.p4Tag;
+                                if (parsed.p4Desc) document.getElementById('p4Desc').value = parsed.p4Desc;
+                                if (parsed.teacherComment) document.getElementById('teacherComment').value = parsed.teacherComment;
+                                
+                                success = true;
+                                showToast("✨ AI 已完成照片辨識！畫面描述已精準填入", "fa-wand-magic-sparkles", "text-amber-400");
+                                saveAllData();
+                                break;
+                            }
+                        }
+                    } catch (e) {
+                        console.warn(`Attempt with ${model} failed, trying fallback model...`, e);
+                    }
+                }
+            } catch (e) {
+                console.error("Gemini API Request error:", e);
+            }
+
+            // 恢復按鈕狀態
+            aiBtn.disabled = false;
+            aiBtnIcon.className = "fas fa-wand-magic-sparkles text-amber-500";
+            aiBtnText.innerText = "✨ 請 AI 依實際照片內容辨識生成";
+
+            if (!success) {
+                applyFallbackTemplate(studentName, topicTitle, recordMonth);
+                showToast("API 呼叫未回應，已自動帶入通用觀察高品質範本！", "fa-exclamation-triangle", "text-amber-400");
+                saveAllData();
+            }
+
+            highlightTextFields();
+        }
+
+        // 通用智能範本帶入 (離線/單機無 Key 時使用)
+        function applyFallbackTemplate(studentName, topicTitle, recordMonth) {
+            document.getElementById('topicDesc').value = `${studentName}在${recordMonth}的「${topicTitle}」主題活動中，透過多元工具操作與角落探索，展現了強烈的好奇心與出色的自主學習能力！`;
+            document.getElementById('p1Tag').value = "感官與生活探索";
+            document.getElementById('p1Desc').value = `專注於觀察與操作學習道具，透過雙手細緻摸索，練習手部小肌肉發展與探索經驗。`;
+            document.getElementById('p2Tag').value = "精細動作與專注";
+            document.getElementById('p2Desc').value = `眼神高度專注於操作眼前材料，展現獨立嘗試與創作意願，逐漸建立穩定手眼協調。`;
+            document.getElementById('p3Tag').value = "角落自主學習";
+            document.getElementById('p3Desc').value = `在園所學習角落自由探索感興趣的教具，能在團體互動環境中安定自我、快樂學習。`;
+            document.getElementById('p4Tag').value = "創作成就與自信";
+            document.getElementById('p4Desc').value = `開心地向大家展示自己的成果，滿臉笑容展現滿滿的學習成就感與自信。`;
+
+            document.getElementById('teacherComment').value = `${studentName}這段時間的表現非常棒！無論是專注摸索還是創作表現，都能沉浸在探索的樂趣中，充滿自信的笑容更是最棒的成長見證！`;
+
+            document.getElementById('textFieldsArea').scrollIntoView({ behavior: 'smooth' });
+            highlightTextFields();
+        }
+
+        function syncData() {
+            document.getElementById('outSchool').innerText = document.getElementById('schoolName').value || '幼兒園';
+            document.getElementById('outSemester').innerText = document.getElementById('semester').value || '';
+            document.getElementById('outClass').innerText = document.getElementById('className').value || '';
+            document.getElementById('outStudent').innerText = document.getElementById('studentName').value || '幼生';
+            document.getElementById('outMonth').innerText = document.getElementById('recordMonth').value || '';
+
+            document.getElementById('outTopicTitle').innerText = document.getElementById('topicTitle').value || '';
+            document.getElementById('outTopicDesc').innerText = document.getElementById('topicDesc').value || '';
+
+            document.getElementById('outP1Tag').innerText = document.getElementById('p1Tag').value || '';
+            document.getElementById('outP1Desc').innerText = document.getElementById('p1Desc').value || '';
+
+            document.getElementById('outP2Tag').innerText = document.getElementById('p2Tag').value || '';
+            document.getElementById('outP2Desc').innerText = document.getElementById('p2Desc').value || '';
+
+            document.getElementById('outP3Tag').innerText = document.getElementById('p3Tag').value || '';
+            document.getElementById('outP3Desc').innerText = document.getElementById('p3Desc').value || '';
+
+            document.getElementById('outP4Tag').innerText = document.getElementById('p4Tag').value || '';
+            document.getElementById('outP4Desc').innerText = document.getElementById('p4Desc').value || '';
+
+            document.getElementById('outComment').innerText = document.getElementById('teacherComment').value || '';
+
+            document.getElementById('outTeacher').innerText = document.getElementById('teacherName').value || '王老師';
+            document.getElementById('outDate').innerText = document.getElementById('recordDate').value || '';
+        }
+
+        function toggleView() {
+            const formView = document.getElementById('formView');
+            const previewView = document.getElementById('previewView');
+            const viewText = document.getElementById('viewText');
+            const viewIcon = document.getElementById('viewIcon');
+
+            if (formView.classList.contains('hidden')) {
+                // 切換為編輯表單
+                formView.classList.remove('hidden');
+                previewView.classList.add('hidden');
+                viewText.innerText = "預覽 A4";
+                viewIcon.className = "fas fa-eye";
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            } else {
+                // 切換為預覽
+                generateAndPreview();
+            }
+        }
+
+        function generateAndPreview() {
+            syncData();
+            document.getElementById('formView').classList.add('hidden');
+            document.getElementById('previewView').classList.remove('hidden');
+            document.getElementById('viewText').innerText = "返回編輯";
+            document.getElementById('viewIcon').className = "fas fa-edit";
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        // 1. 一鍵導出標準整張 A4 PDF 檔案 (使用 html2pdf.js)
+        async function downloadAsPDF() {
+            syncData();
+            const btn = document.getElementById('downloadPdfBtn');
+            const originalText = btn.innerHTML;
+            btn.innerHTML = `<i class="fas fa-spinner animate-spin-custom"></i> 產生 PDF 中...`;
+            btn.disabled = true;
+
+            const element = document.getElementById('printableA4Card');
+            const studentName = document.getElementById('studentName').value || '幼生';
+
+            const opt = {
+                margin:       0,
+                filename:     `學習足跡紀錄單_${studentName}.pdf`,
+                image:        { type: 'jpeg', quality: 0.98 },
+                html2canvas:  { scale: 2, useCORS: true, logging: false },
+                jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+            };
+
+            try {
+                await html2pdf().set(opt).from(element).save();
+                showToast("🎉 已成功導出 A4 PDF 檔案！", "fa-check-circle", "text-emerald-400");
+            } catch (err) {
+                console.error("PDF generation failed:", err);
+                alert("生成 PDF 失敗，請切換使用『下載 PNG 圖檔』功能。");
+            } finally {
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+            }
+        }
+
+        // 2. 將 A4 內容轉為高解析 PNG 圖片檔案下載
+        async function downloadAsPNG() {
+            syncData();
+            const btn = document.getElementById('downloadImgBtn');
+            const originalText = btn.innerHTML;
+            btn.innerHTML = `<i class="fas fa-spinner animate-spin-custom"></i> 生成圖片中...`;
+            btn.disabled = true;
+
+            const element = document.getElementById('printableA4Card');
+            const studentName = document.getElementById('studentName').value || '幼生';
+
+            try {
+                const canvas = await html2canvas(element, {
+                    scale: 2,
+                    useCORS: true,
+                    backgroundColor: "#ffffff"
+                });
+
+                const dataUrl = canvas.toDataURL('image/png');
+                
+                const link = document.createElement('a');
+                link.download = `學習足跡紀錄單_${studentName}.png`;
+                link.href = dataUrl;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            } catch (err) {
+                alert("生成圖片失敗，請直接嘗試開啟列印功能。");
+            } finally {
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+            }
+        }
+
+        // 3. 下載為獨立可離線執行的 HTML 備份檔
+        function downloadAsHTML() {
+            syncData();
+            const cardHtml = document.getElementById('printableA4Card').outerHTML;
+            const studentName = document.getElementById('studentName').value || '幼生';
+
+            const fullHtml = `<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>學習足跡紀錄單 - ${studentName}</title>
+    <script src="https://cdn.tailwindcss.com"><\/script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@400;500;700&display=swap');
+        body { font-family: 'Zen Maru Gothic', sans-serif; background: #f1f5f9; margin: 0; padding: 20px 0; }
+        .a4-container { width: 210mm; height: 297mm; padding: 10mm 12mm; margin: 0 auto; background: white; box-shadow: 0 4px 12px rgba(0,0,0,0.1); box-sizing: border-box; display: flex; flex-direction: column; justify-content: space-between; }
+        
+        .theme-amber .a4-border { border-color: #fde68a; }
+        .theme-amber .a4-header { background-color: #fef3c7; border-color: #fcd34d; color: #78350f; }
+        .theme-amber .a4-icon { background-color: #fbbf24; }
+        .theme-amber .a4-topic { background-color: #fff7ed; border-left-color: #fb923c; color: #9a3412; }
+        .theme-amber .a4-card1 { background-color: #fffbeb; border-color: #fde68a; }
+        .theme-amber .a4-card2 { background-color: #eff6ff; border-color: #bfdbfe; }
+        .theme-amber .a4-card3 { background-color: #ecfdf5; border-color: #a7f3d0; }
+        .theme-amber .a4-card4 { background-color: #fff1f2; border-color: #fecdd3; }
+        .theme-amber .a4-badge1 { background-color: #fde68a; color: #78350f; }
+        .theme-amber .a4-badge2 { background-color: #bfdbfe; color: #1e3a8a; }
+        .theme-amber .a4-badge3 { background-color: #a7f3d0; color: #064e3b; }
+        .theme-amber .a4-badge4 { background-color: #fecdd3; color: #881337; }
+
+        .theme-green .a4-border { border-color: #a7f3d0; }
+        .theme-green .a4-header { background-color: #d1fae5; border-color: #6ee7b7; color: #065f46; }
+        .theme-green .a4-icon { background-color: #10b981; }
+        .theme-green .a4-topic { background-color: #f0fdf4; border-left-color: #34d399; color: #14532d; }
+        .theme-green .a4-card1 { background-color: #f0fdf4; border-color: #bbf7d0; }
+        .theme-green .a4-card2 { background-color: #f0fdfa; border-color: #99f6e4; }
+        .theme-green .a4-card3 { background-color: #ecfdf5; border-color: #a7f3d0; }
+        .theme-green .a4-card4 { background-color: #f7fee7; border-color: #d9f99d; }
+        .theme-green .a4-badge1 { background-color: #bbf7d0; color: #14532d; }
+        .theme-green .a4-badge2 { background-color: #99f6e4; color: #134e4a; }
+        .theme-green .a4-badge3 { background-color: #a7f3d0; color: #064e3b; }
+        .theme-green .a4-badge4 { background-color: #d9f99d; color: #365314; }
+
+        .theme-pastel .a4-border { border-color: #f472b6; }
+        .theme-pastel .a4-header { background-color: #fce7f3; border-color: #fbcfe8; color: #831843; }
+        .theme-pastel .a4-icon { background-color: #ec4899; }
+        .theme-pastel .a4-topic { background-color: #faf5ff; border-left-color: #c084fc; color: #581c87; }
+        .theme-pastel .a4-card1 { background-color: #fff1f2; border-color: #fecdd3; }
+        .theme-pastel .a4-card2 { background-color: #f0f9ff; border-color: #bae6fd; }
+        .theme-pastel .a4-card3 { background-color: #faf5ff; border-color: #e9d5ff; }
+        .theme-pastel .a4-card4 { background-color: #fdf2f8; border-color: #fbcfe8; }
+        .theme-pastel .a4-badge1 { background-color: #fecdd3; color: #881337; }
+        .theme-pastel .a4-badge2 { background-color: #bae6fd; color: #0c4a6e; }
+        .theme-pastel .a4-badge3 { background-color: #e9d5ff; color: #581c87; }
+        .theme-pastel .a4-badge4 { background-color: #fbcfe8; color: #831843; }
+
+        .theme-modern .a4-border { border-color: #cbd5e1; }
+        .theme-modern .a4-header { background-color: #f1f5f9; border-color: #cbd5e1; color: #1e293b; }
+        .theme-modern .a4-icon { background-color: #475569; }
+        .theme-modern .a4-topic { background-color: #f8fafc; border-left-color: #64748b; color: #0f172a; }
+        .theme-modern .a4-card1 { background-color: #f8fafc; border-color: #e2e8f0; }
+        .theme-modern .a4-card2 { background-color: #f8fafc; border-color: #e2e8f0; }
+        .theme-modern .a4-card3 { background-color: #f8fafc; border-color: #e2e8f0; }
+        .theme-modern .a4-card4 { background-color: #f8fafc; border-color: #e2e8f0; }
+        .theme-modern .a4-badge1 { background-color: #e2e8f0; color: #334155; }
+        .theme-modern .a4-badge2 { background-color: #e2e8f0; color: #334155; }
+        .theme-modern .a4-badge3 { background-color: #e2e8f0; color: #334155; }
+        .theme-modern .a4-badge4 { background-color: #e2e8f0; color: #334155; }
+
+        @page { size: A4 portrait; margin: 0; }
+        @media print {
+            body { background: white; padding: 0; margin: 0; }
+            .a4-container { width: 210mm; height: 297mm; padding: 8mm 10mm; margin: 0; box-shadow: none; page-break-after: avoid; }
+        }
+    </style>
+</head>
+<body>
+    <div style="text-align:center; margin-bottom:15px;" class="no-print">
+        <button onclick="window.print()" style="background:#059669; color:white; font-weight:bold; padding:10px 24px; border-radius:30px; border:none; cursor:pointer;">
+            🖨️ 列印 / 另存為 PDF
+        </button>
+    </div>
+    ${cardHtml}
+</body>
+</html>`;
+
+            const blob = new Blob([fullHtml], { type: 'text/html;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `學習足跡紀錄單_${studentName}.html`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        // 4. 列印處理機制
+        function doPrint() {
+            try {
+                window.focus();
+                window.print();
+            } catch (e) {
+                alert("您的瀏覽器阻擋直接列印，系統已為您自動切換成 PNG 圖片下載功能！");
+                downloadAsPNG();
+            }
+        }
+    </script>
+</body>
+</html>
